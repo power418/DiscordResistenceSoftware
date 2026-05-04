@@ -2,6 +2,7 @@ module;
 
 #include <cstdint>
 #include <cstring>
+#include <cwctype>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,9 +16,8 @@ module;
 #  include <shlobj.h>
 #  include <commoncontrols.h>
 #  include <objbase.h>
+#  include <wincodec.h>
 #endif
-
-#include <lodepng.h>
 
 export module rpc.os.icon_extractor;
 
@@ -42,9 +42,90 @@ namespace icon_detail {
   return output;
 }
 
-// Try to get a high-res icon (256x256 jumbo) via shell image list
+[[nodiscard]] inline bool equals_path_case_insensitive(std::wstring_view a,
+                                                       std::wstring_view b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    if (std::towlower(a[i]) != std::towlower(b[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+[[nodiscard]] inline std::wstring get_process_image_path(DWORD pid) {
+  HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (!process) {
+    return {};
+  }
+
+  std::wstring buffer(512, L'\0');
+  DWORD size = static_cast<DWORD>(buffer.size());
+
+  for (int attempt = 0; attempt < 4; ++attempt) {
+    if (QueryFullProcessImageNameW(process, 0, buffer.data(), &size) != 0) {
+      CloseHandle(process);
+      buffer.resize(size);
+      return buffer;
+    }
+
+    buffer.resize(buffer.size() * 2);
+    size = static_cast<DWORD>(buffer.size());
+  }
+
+  CloseHandle(process);
+  return {};
+}
+
+[[nodiscard]] inline std::wstring get_window_process_path(HWND hwnd) {
+  if (!hwnd) {
+    return {};
+  }
+
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (pid == 0) {
+    return {};
+  }
+
+  return get_process_image_path(pid);
+}
+
+class ComApartment {
+public:
+  ComApartment() {
+    const HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    initialized_ = (hr == S_OK || hr == S_FALSE);
+  }
+
+  ~ComApartment() {
+    if (initialized_) {
+      CoUninitialize();
+    }
+  }
+
+  ComApartment(const ComApartment&) = delete;
+  ComApartment& operator=(const ComApartment&) = delete;
+
+private:
+  bool initialized_ = false;
+};
+
+template <typename T>
+inline void release_com(T*& ptr) {
+  if (ptr) {
+    ptr->Release();
+    ptr = nullptr;
+  }
+}
+
+// Try to get a high-res icon (256x256 jumbo) via the shell image list.
 [[nodiscard]] inline HICON extract_jumbo_icon(const std::wstring& exe_path) {
-  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+  ComApartment com_apartment{};
 
   SHFILEINFOW sfi{};
   if (SHGetFileInfoW(exe_path.c_str(), 0, &sfi, sizeof(sfi),
@@ -69,7 +150,7 @@ namespace icon_detail {
   return hIcon;
 }
 
-// Fallback: ExtractIconExW (32x32)
+// Fallback: ExtractIconExW (usually 32x32).
 [[nodiscard]] inline HICON extract_basic_icon(const std::wstring& exe_path) {
   HICON large_icon = nullptr;
   UINT count = ExtractIconExW(exe_path.c_str(), 0, &large_icon, nullptr, 1);
@@ -118,12 +199,27 @@ namespace icon_detail {
   return nullptr;
 }
 
-// Convert HICON to RGBA pixel data using pure Win32 GDI (no GDI+ needed)
+[[nodiscard]] inline bool window_icon_matches_exe(HWND hwnd, std::string_view exe_path) {
+  if (!hwnd || exe_path.empty()) {
+    return false;
+  }
+
+  const std::wstring window_exe_path = get_window_process_path(hwnd);
+  const std::wstring target_exe_path = utf8_to_wide(exe_path);
+  if (window_exe_path.empty() || target_exe_path.empty()) {
+    return false;
+  }
+
+  return equals_path_case_insensitive(window_exe_path, target_exe_path);
+}
+
+// Convert HICON to BGRA pixel data using pure Win32 GDI.
 [[nodiscard]] inline std::vector<std::uint8_t>
-icon_to_rgba(HICON hIcon, int& out_width, int& out_height) {
-  // Get icon dimensions
+icon_to_bgra(HICON hIcon, int& out_width, int& out_height) {
   ICONINFO icon_info{};
-  if (!GetIconInfo(hIcon, &icon_info)) return {};
+  if (!GetIconInfo(hIcon, &icon_info)) {
+    return {};
+  }
 
   BITMAP bm{};
   GetObject(icon_info.hbmColor ? icon_info.hbmColor : icon_info.hbmMask,
@@ -137,9 +233,14 @@ icon_to_rgba(HICON hIcon, int& out_width, int& out_height) {
 
   if (out_width <= 0 || out_height <= 0) return {};
 
-  // Create a 32-bit top-down DIB section
   HDC screen_dc = GetDC(nullptr);
+  if (!screen_dc) return {};
+
   HDC mem_dc = CreateCompatibleDC(screen_dc);
+  if (!mem_dc) {
+    ReleaseDC(nullptr, screen_dc);
+    return {};
+  }
 
   BITMAPINFO bmi{};
   bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -150,91 +251,164 @@ icon_to_rgba(HICON hIcon, int& out_width, int& out_height) {
   bmi.bmiHeader.biCompression = BI_RGB;
 
   void* pixels = nullptr;
-  HBITMAP dib = CreateDIBSection(mem_dc, &bmi, DIB_RGB_COLORS,
-                                 &pixels, nullptr, 0);
+  HBITMAP dib = CreateDIBSection(mem_dc, &bmi, DIB_RGB_COLORS, &pixels, nullptr, 0);
   if (!dib || !pixels) {
+    if (dib) {
+      DeleteObject(dib);
+    }
     DeleteDC(mem_dc);
     ReleaseDC(nullptr, screen_dc);
     return {};
   }
 
   HGDIOBJ old_bmp = SelectObject(mem_dc, dib);
-
-  // Clear to transparent black
-  std::memset(pixels, 0,
-              static_cast<std::size_t>(out_width) * out_height * 4);
-
-  // Draw the icon onto the DIB
-  DrawIconEx(mem_dc, 0, 0, hIcon, out_width, out_height,
-             0, nullptr, DI_NORMAL);
-
-  // Convert BGRA → RGBA
-  const int pixel_count = out_width * out_height;
-  std::vector<std::uint8_t> rgba(static_cast<std::size_t>(pixel_count) * 4);
-  auto* src = static_cast<std::uint8_t*>(pixels);
-
-  for (int i = 0; i < pixel_count; ++i) {
-    const int offset = i * 4;
-    rgba[offset + 0] = src[offset + 2];  // R ← B
-    rgba[offset + 1] = src[offset + 1];  // G
-    rgba[offset + 2] = src[offset + 0];  // B ← R
-    rgba[offset + 3] = src[offset + 3];  // A
+  if (!old_bmp || old_bmp == HGDI_ERROR) {
+    DeleteObject(dib);
+    DeleteDC(mem_dc);
+    ReleaseDC(nullptr, screen_dc);
+    return {};
   }
 
-  // Cleanup GDI
+  // Clear to transparent black.
+  std::memset(pixels, 0, static_cast<std::size_t>(out_width) * out_height * 4);
+
+  // Draw the icon onto the DIB.
+  DrawIconEx(mem_dc, 0, 0, hIcon, out_width, out_height, 0, nullptr, DI_NORMAL);
+
+  const std::size_t byte_count = static_cast<std::size_t>(out_width) * out_height * 4;
+  std::vector<std::uint8_t> bgra(byte_count);
+  auto* src = static_cast<std::uint8_t*>(pixels);
+  std::memcpy(bgra.data(), src, byte_count);
+
   SelectObject(mem_dc, old_bmp);
   DeleteObject(dib);
   DeleteDC(mem_dc);
   ReleaseDC(nullptr, screen_dc);
 
-  return rgba;
+  return bgra;
+}
+
+[[nodiscard]] inline std::vector<std::uint8_t>
+encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
+  if (bgra.empty() || width <= 0 || height <= 0) {
+    return {};
+  }
+
+  ComApartment com_apartment{};
+
+  IWICImagingFactory* factory = nullptr;
+  IWICBitmapEncoder* encoder = nullptr;
+  IWICBitmapFrameEncode* frame = nullptr;
+  IPropertyBag2* properties = nullptr;
+  IStream* stream = nullptr;
+
+  HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_IWICImagingFactory,
+                                reinterpret_cast<void**>(&factory));
+  if (FAILED(hr)) {
+    return {};
+  }
+
+  hr = CreateStreamOnHGlobal(nullptr, TRUE, &stream);
+  if (SUCCEEDED(hr)) {
+    hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
+  }
+  if (SUCCEEDED(hr)) {
+    hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+  }
+  if (SUCCEEDED(hr)) {
+    hr = encoder->CreateNewFrame(&frame, &properties);
+  }
+  if (SUCCEEDED(hr)) {
+    hr = frame->Initialize(properties);
+  }
+  if (SUCCEEDED(hr)) {
+    hr = frame->SetSize(static_cast<UINT>(width), static_cast<UINT>(height));
+  }
+  if (SUCCEEDED(hr)) {
+    WICPixelFormatGUID pixel_format = GUID_WICPixelFormat32bppBGRA;
+    hr = frame->SetPixelFormat(&pixel_format);
+    if (SUCCEEDED(hr) && !IsEqualGUID(pixel_format, GUID_WICPixelFormat32bppBGRA)) {
+      hr = E_FAIL;
+    }
+  }
+  if (SUCCEEDED(hr)) {
+    const UINT stride = static_cast<UINT>(width * 4);
+    const UINT data_size = static_cast<UINT>(bgra.size());
+    hr = frame->WritePixels(static_cast<UINT>(height), stride, data_size,
+                            const_cast<BYTE*>(bgra.data()));
+  }
+  if (SUCCEEDED(hr)) {
+    hr = frame->Commit();
+  }
+  if (SUCCEEDED(hr)) {
+    hr = encoder->Commit();
+  }
+
+  std::vector<std::uint8_t> png_data;
+  if (SUCCEEDED(hr)) {
+    HGLOBAL memory = nullptr;
+    hr = GetHGlobalFromStream(stream, &memory);
+    if (SUCCEEDED(hr) && memory) {
+      const SIZE_T size = GlobalSize(memory);
+      if (size > 0) {
+        if (void* bytes = GlobalLock(memory)) {
+          const auto* first = static_cast<const std::uint8_t*>(bytes);
+          png_data.assign(first, first + size);
+          GlobalUnlock(memory);
+        }
+      }
+    }
+  }
+
+  release_com(properties);
+  release_com(frame);
+  release_com(encoder);
+  release_com(stream);
+  release_com(factory);
+
+  return png_data;
 }
 
 } // namespace icon_detail
 
 /// Extract the best available icon for a foreground window/executable and return it as PNG bytes.
 /// Tries the window icon first, then falls back to the executable icon.
-/// Uses Win32 GDI for icon extraction + lodepng for PNG encoding.
+/// Uses Win32 GDI for icon extraction + Windows Imaging Component for PNG encoding.
 /// Returns empty vector on failure.
 [[nodiscard]] inline std::vector<std::uint8_t>
 extract_icon_png(std::uintptr_t window_handle, std::string_view exe_path) {
   HICON hIcon = nullptr;
 
-  if (window_handle != 0) {
+  if (window_handle != 0 && icon_detail::window_icon_matches_exe(
+        reinterpret_cast<HWND>(window_handle), exe_path)) {
     hIcon = icon_detail::extract_window_icon(reinterpret_cast<HWND>(window_handle));
   }
 
   if (!hIcon && !exe_path.empty()) {
     const std::wstring wide_path = icon_detail::utf8_to_wide(exe_path);
     if (!wide_path.empty()) {
-      // Try jumbo (256x256) first, then basic (32x32)
       hIcon = icon_detail::extract_jumbo_icon(wide_path);
       if (!hIcon) {
         hIcon = icon_detail::extract_basic_icon(wide_path);
       }
     }
   }
+
   if (!hIcon) return {};
 
-  // Convert HICON â†’ RGBA pixels
-  int width = 0, height = 0;
-  auto rgba = icon_detail::icon_to_rgba(hIcon, width, height);
+  int width = 0;
+  int height = 0;
+  auto bgra = icon_detail::icon_to_bgra(hIcon, width, height);
   DestroyIcon(hIcon);
 
-  if (rgba.empty() || width <= 0 || height <= 0) return {};
+  if (bgra.empty() || width <= 0 || height <= 0) return {};
 
-  // Encode RGBA pixels â†’ PNG using lodepng
-  std::vector<std::uint8_t> png_data;
-  unsigned error = lodepng::encode(png_data, rgba,
-                                   static_cast<unsigned>(width),
-                                   static_cast<unsigned>(height));
-  if (error != 0) return {};
-
-  return png_data;
+  return icon_detail::encode_png_bgra(bgra, width, height);
 }
 
 /// Extract the icon from an executable and return it as PNG bytes.
-/// Uses Win32 GDI for icon extraction + lodepng for PNG encoding.
+/// Uses Win32 GDI for icon extraction + Windows Imaging Component for PNG encoding.
 /// Returns empty vector on failure.
 [[nodiscard]] inline std::vector<std::uint8_t>
 extract_icon_png(std::string_view exe_path) {
@@ -243,33 +417,25 @@ extract_icon_png(std::string_view exe_path) {
   const std::wstring wide_path = icon_detail::utf8_to_wide(exe_path);
   if (wide_path.empty()) return {};
 
-  // Try jumbo (256x256) first, then basic (32x32)
   HICON hIcon = icon_detail::extract_jumbo_icon(wide_path);
   if (!hIcon) {
     hIcon = icon_detail::extract_basic_icon(wide_path);
   }
   if (!hIcon) return {};
 
-  // Convert HICON → RGBA pixels
-  int width = 0, height = 0;
-  auto rgba = icon_detail::icon_to_rgba(hIcon, width, height);
+  int width = 0;
+  int height = 0;
+  auto bgra = icon_detail::icon_to_bgra(hIcon, width, height);
   DestroyIcon(hIcon);
 
-  if (rgba.empty() || width <= 0 || height <= 0) return {};
+  if (bgra.empty() || width <= 0 || height <= 0) return {};
 
-  // Encode RGBA pixels → PNG using lodepng
-  std::vector<std::uint8_t> png_data;
-  unsigned error = lodepng::encode(png_data, rgba,
-                                   static_cast<unsigned>(width),
-                                   static_cast<unsigned>(height));
-  if (error != 0) return {};
-
-  return png_data;
+  return icon_detail::encode_png_bgra(bgra, width, height);
 }
 
 #else
 
-// Linux/macOS stub — icon extraction not supported yet
+// Linux/macOS stub - icon extraction not supported yet.
 [[nodiscard]] inline std::vector<std::uint8_t>
 extract_icon_png(std::uintptr_t /*window_handle*/, std::string_view /*exe_path*/) {
   return {};

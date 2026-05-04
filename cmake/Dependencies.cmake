@@ -23,30 +23,10 @@ function(software_rpc_add_dependencies target_name)
   set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
   CPMAddPackage("gh:nlohmann/json#v3.11.3")
 
-  # lodepng - PNG encoder/decoder (single file, zero dependencies).
-  CPMAddPackage(
-    NAME lodepng
-    GITHUB_REPOSITORY lvandeve/lodepng
-    GIT_TAG master
-    DOWNLOAD_ONLY YES
-  )
-
-  if(lodepng_ADDED AND NOT TARGET lodepng)
-    add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
-    target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")
-    # Suppress warnings in third-party code
-    if(MSVC)
-      target_compile_options(lodepng PRIVATE /w)
-    else()
-      target_compile_options(lodepng PRIVATE -w)
-    endif()
-  endif()
-
   target_link_libraries("${target_name}"
     PUBLIC
       fmt::fmt-header-only
       spdlog::spdlog_header_only
       nlohmann_json::nlohmann_json
-      lodepng
   )
 endfunction()

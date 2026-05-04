@@ -20,6 +20,7 @@ add_library(rpc_core)
 target_sources(rpc_core
   PRIVATE
     src/app/tray.cpp
+    src/stb_image.cpp
   PUBLIC
     FILE_SET CXX_MODULES FILES
       modules/rpc/rpc.cppm
@@ -43,6 +44,12 @@ target_sources(rpc_core
 target_include_directories(rpc_core
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib
+)
+
+target_compile_definitions(rpc_core
+  PUBLIC
+    SOFTWARE_RPC_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/res"
 )
 
 target_compile_features(rpc_core PUBLIC cxx_std_20)
@@ -50,7 +57,7 @@ target_compile_features(rpc_core PUBLIC cxx_std_20)
 software_rpc_add_dependencies(rpc_core)
 
 if (WIN32)
-  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 winhttp crypt32)
+  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 windowscodecs winhttp crypt32)
 endif()
 
 if (UNIX AND NOT APPLE)
@@ -113,8 +120,10 @@ endif()
 # Warnings (reasonable defaults; keep noise low)
 if (MSVC)
   target_compile_options(rpc_core PRIVATE /W4 /permissive-)
+  set_source_files_properties(src/stb_image.cpp PROPERTIES COMPILE_OPTIONS /w)
 else()
   target_compile_options(rpc_core PRIVATE -Wall -Wextra -Wpedantic)
+  set_source_files_properties(src/stb_image.cpp PROPERTIES COMPILE_OPTIONS -w)
 endif()
 
 add_executable(software_discord_rpc
@@ -122,6 +131,12 @@ add_executable(software_discord_rpc
 )
 
 target_link_libraries(software_discord_rpc PRIVATE rpc_core)
+
+add_custom_command(TARGET software_discord_rpc POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          "${CMAKE_CURRENT_SOURCE_DIR}/res"
+          "$<TARGET_FILE_DIR:software_discord_rpc>/res"
+)
 
 if (SOFTWARE_RPC_ENABLE_LTO)
   set_property(TARGET rpc_core PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)

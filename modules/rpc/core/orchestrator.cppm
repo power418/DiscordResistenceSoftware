@@ -84,6 +84,7 @@ private:
   // Misc state
   mutable std::string last_seen_process_;
   mutable std::string last_activity_key_;
+  mutable std::string last_large_image_;
   mutable bool activity_is_set_ = false;
   mutable bool warned_missing_client_id_ = false;
   mutable bool warned_connect_failure_ = false;
@@ -120,18 +121,17 @@ private:
     sticky_activity_ = detected;
     sticky_activity_.start_timestamp_unix = session_start_;
 
-    // Auto-detect icon from exe
-    std::string icon_url = icon_cache_.resolve_icon_url(sticky_exe_path_);
-    if (!icon_url.empty()) {
-      sticky_activity_.large_image = icon_url;
-      sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
-    } else {
-      sticky_activity_.large_image = rpc::env_or("DISCORD_LARGE_IMAGE", "");
-      sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
-    }
+    // Auto-detect icon from the active window first, then fall back to the exe.
+    std::string icon_url = icon_cache_.resolve_icon_url(snapshot.window_handle, sticky_exe_path_);
+    const std::string fallback_large_image = rpc::env_or("DISCORD_LARGE_IMAGE", "");
+    sticky_activity_.large_image = icon_url.empty() ? fallback_large_image : icon_url;
+    sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
+
+    const bool is_large_image_changed = (sticky_activity_.large_image != last_large_image_);
 
     // Send to Discord when something changed
     const bool need_update = is_different_app || is_title_changed
+                          || is_large_image_changed
                           || !activity_is_set_ || !discord_.connected();
     if (need_update) {
       send_activity(activity_key);
@@ -159,6 +159,7 @@ private:
 
     if (discord_.set_activity(sticky_activity_)) {
       last_activity_key_ = activity_key;
+      last_large_image_ = sticky_activity_.large_image;
       activity_is_set_ = true;
       rpc::log::info("Discord RPC active: {} / {} (session since {})",
                      sticky_activity_.details, sticky_activity_.state, session_start_);
@@ -179,6 +180,7 @@ private:
     }
 
     last_activity_key_.clear();
+    last_large_image_.clear();
     activity_is_set_ = false;
   }
 
