@@ -1,8 +1,10 @@
 module;
 
 #include <chrono>
+#include <cstddef>
 #include <string>
 #include <string_view>
+#include <optional>
 #include <thread>
 
 export module rpc.core.orchestrator;
@@ -10,6 +12,8 @@ export module rpc.core.orchestrator;
 import rpc.activity;
 import rpc.core;
 import rpc.detectors.creative_apps;
+import rpc.detectors.productive_apps;
+import rpc.core.recent_activity;
 import rpc.discord.ipc_client;
 import rpc.os.active_window;
 import rpc.os.icon_cache;
@@ -36,14 +40,32 @@ public:
 
     // ── Sticky RPC logic ──
     // 1. If active window is a creative app → adopt it (update/switch)
-    // 2. If active window is NOT creative → keep existing RPC as long as its process lives
-    // 3. Only clear when the sticky process actually exits
+    // 2. Otherwise, if it's a supported productive app → adopt it too
+    // 3. If active window is neither → keep existing RPC as long as its process lives
+    // 4. Only clear when the sticky process actually exits
 
     const auto detected = rpc::detectors::detect_creative_activity(snapshot);
+    std::optional<rpc::ActivityPayload> productive_detected;
+    if (!detected.has_value()) {
+      productive_detected = rpc::detectors::detect_productive_activity(snapshot);
+    }
+
+    const std::optional<rpc::ActivityPayload> activity_for_history =
+      detected.has_value() ? detected : productive_detected;
+    const std::string history_key = rpc::RecentActivityStore::history_key(snapshot);
+    if (!history_key.empty()) {
+      recent_activity_.record(snapshot, activity_for_history, history_key != last_history_key_);
+      last_history_key_ = history_key;
+    }
 
     if (detected.has_value()) {
       // Active window IS a creative app → adopt or keep it
       adopt_creative_app(snapshot, detected.value());
+      return;
+    }
+
+    if (productive_detected.has_value()) {
+      adopt_creative_app(snapshot, productive_detected.value());
       return;
     }
 
@@ -70,10 +92,15 @@ public:
     std::this_thread::sleep_for(poll_interval_);
   }
 
+  [[nodiscard]] std::string recent_activity_summary(std::size_t limit = 10) const {
+    return recent_activity_.summary(limit);
+  }
+
 private:
   std::chrono::milliseconds poll_interval_;
   mutable rpc::discord::IpcClient discord_;
   mutable rpc::IconCache icon_cache_;
+  mutable rpc::RecentActivityStore recent_activity_;
 
   // Sticky state — the creative app whose RPC stays active
   mutable std::string sticky_process_;          // e.g. "FL64.exe"
@@ -83,6 +110,7 @@ private:
 
   // Misc state
   mutable std::string last_seen_process_;
+  mutable std::string last_history_key_;
   mutable std::string last_activity_key_;
   mutable std::string last_large_image_;
   mutable bool activity_is_set_ = false;

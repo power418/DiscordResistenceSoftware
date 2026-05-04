@@ -147,6 +147,7 @@ void show_tray_context_menu(void* window_handle) {
   }
 
   AppendMenuW(menu, MF_STRING, kTrayMenuShow, L"Show");
+  AppendMenuW(menu, MF_STRING, kTrayMenuRecentActivity, L"Recent activity");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, kTrayMenuExit, L"Exit");
 

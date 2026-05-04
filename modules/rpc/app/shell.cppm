@@ -7,6 +7,7 @@ module;
 #include <cstdlib>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include <rpc/platform/tray.hpp>
@@ -60,6 +61,33 @@ constexpr WORD kInfoIconResource = 32516;
 constexpr WORD kArrowCursorResource = 32512;
 constexpr UINT kTraySelectMessage = 0x0400;
 constexpr UINT kTrayKeySelectMessage = 0x0401;
+
+[[nodiscard]] std::wstring utf8_to_wide(std::string_view text) {
+  if (text.empty()) {
+    return {};
+  }
+
+  const int required_size = MultiByteToWideChar(
+    CP_UTF8,
+    0,
+    text.data(),
+    static_cast<int>(text.size()),
+    nullptr,
+    0);
+  if (required_size <= 0) {
+    return {};
+  }
+
+  std::wstring wide(static_cast<std::size_t>(required_size), L'\0');
+  MultiByteToWideChar(
+    CP_UTF8,
+    0,
+    text.data(),
+    static_cast<int>(text.size()),
+    wide.data(),
+    required_size);
+  return wide;
+}
 
 [[nodiscard]] UINT timer_ms(std::chrono::milliseconds duration) {
   constexpr auto max_timer = static_cast<std::int64_t>((std::numeric_limits<UINT>::max)());
@@ -160,6 +188,20 @@ private:
     SetForegroundWindow(hwnd_);
     UpdateWindow(hwnd_);
     SetTimer(hwnd_, kSplashTimer, timer_ms(options_.splash_duration), nullptr);
+  }
+
+  void show_recent_activity() const {
+    const std::string summary = orchestrator_.recent_activity_summary(10);
+    const std::string text = summary.empty()
+      ? "No recent activity yet. Open a supported app to build history."
+      : summary;
+    const std::wstring wide_text = utf8_to_wide(text);
+
+    MessageBoxW(
+      hwnd_,
+      wide_text.c_str(),
+      L"Recent activity",
+      MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
   }
 
   void hide_splash() const {
@@ -290,6 +332,10 @@ private:
           show_splash();
           return 0;
         }
+        if (LOWORD(wparam) == rpc::platform::kTrayMenuRecentActivity) {
+          show_recent_activity();
+          return 0;
+        }
         if (LOWORD(wparam) == rpc::platform::kTrayMenuExit) {
           DestroyWindow(hwnd_);
           return 0;
@@ -400,12 +446,15 @@ private:
 
     GtkWidget* menu = gtk_menu_new();
     GtkWidget* show_item = gtk_menu_item_new_with_label("Show");
+    GtkWidget* recent_item = gtk_menu_item_new_with_label("Recent activity");
     GtkWidget* exit_item = gtk_menu_item_new_with_label("Exit");
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), show_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), recent_item);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit_item);
 
     g_signal_connect(show_item, "activate", G_CALLBACK(show_cb), this);
+    g_signal_connect(recent_item, "activate", G_CALLBACK(recent_activity_cb), this);
     g_signal_connect(exit_item, "activate", G_CALLBACK(exit_cb), this);
     gtk_widget_show_all(menu);
 
@@ -415,6 +464,24 @@ private:
   void show_window() {
     gtk_widget_show_all(window_);
     gtk_window_present(GTK_WINDOW(window_));
+  }
+
+  void show_recent_activity() {
+    const std::string summary = orchestrator_.recent_activity_summary(10);
+    const std::string text = summary.empty()
+      ? "No recent activity yet. Open a supported app to build history."
+      : summary;
+
+    GtkWidget* dialog = gtk_message_dialog_new(
+      GTK_WINDOW(window_),
+      GTK_DIALOG_MODAL,
+      GTK_MESSAGE_INFO,
+      GTK_BUTTONS_OK,
+      "%s",
+      text.c_str());
+    gtk_window_set_title(GTK_WINDOW(dialog), "Recent activity");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
   }
 
   void hide_window() { gtk_widget_hide(window_); }
@@ -437,6 +504,10 @@ private:
 
   static void show_cb(GtkMenuItem*, gpointer data) {
     static_cast<LinuxIndicatorShell*>(data)->show_window();
+  }
+
+  static void recent_activity_cb(GtkMenuItem*, gpointer data) {
+    static_cast<LinuxIndicatorShell*>(data)->show_recent_activity();
   }
 
   static void exit_cb(GtkMenuItem*, gpointer) { gtk_main_quit(); }

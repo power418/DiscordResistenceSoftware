@@ -29,7 +29,9 @@ target_sources(rpc_core
       modules/rpc/activity.cppm
       modules/rpc/config.cppm
       modules/rpc/core/orchestrator.cppm
+      modules/rpc/core/recent_activity.cppm
       modules/rpc/detectors/creative_apps.cppm
+      modules/rpc/detectors/productive_apps.cppm
       modules/rpc/discord/ipc_client.cppm
       modules/rpc/net/imgur_uploader.cppm
       modules/rpc/os/active_window.cppm
