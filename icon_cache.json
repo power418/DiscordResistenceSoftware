@@ -1,10 +1,25 @@
 {
   "entries": {
-    "c:/programdata/ableton/live 12 suite/program/ableton live 12 suite.exe": {
+    "c:/program files/blender foundation/blender 5.1/blender.exe": {
       "failure_count": 0,
       "next_retry_unix": 0,
-      "url": "https://files.catbox.moe/vvai1g.png"
+      "url": "https://files.catbox.moe/bwgltp.png"
+    },
+    "c:/program files/epic games/ue_5.7/engine/binaries/win64/unrealeditor.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/6e2rq5.png"
+    },
+    "c:/program files/image-line/fl studio 2025/fl64.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/g78wib.png"
+    },
+    "c:/users/administrator/documents/godothub/engine/4.6.2-stable/godot.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/ekwb20.png"
     }
   },
-  "schema_version": 5
+  "schema_version": 6
 }

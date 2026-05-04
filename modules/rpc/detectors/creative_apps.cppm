@@ -50,6 +50,107 @@ struct CreativeAppProfile {
 }
 
 [[nodiscard]] inline std::optional<CreativeAppProfile>
+match_3d_app(std::string_view identity) {
+  if (contains_any(identity, {"blender"})) {
+    return CreativeAppProfile{
+      .display_name = "Blender",
+      .details = "Modeling in 3D",
+      .state = "Blender",
+    };
+  }
+
+  if (contains_any(identity, {"maya.exe", "autodesk maya", "maya 202", "maya 201"})) {
+    return CreativeAppProfile{
+      .display_name = "Autodesk Maya",
+      .details = "Creating 3D scenes",
+      .state = "Maya",
+    };
+  }
+
+  if (contains_any(identity, {"3dsmax", "3ds max", "autodesk 3ds max"})) {
+    return CreativeAppProfile{
+      .display_name = "Autodesk 3ds Max",
+      .details = "Modeling in 3D",
+      .state = "3ds Max",
+    };
+  }
+
+  if (contains_any(identity, {"cinema 4d", "c4d.exe", "maxon cinema 4d"})) {
+    return CreativeAppProfile{
+      .display_name = "Cinema 4D",
+      .details = "Building motion graphics",
+      .state = "Cinema 4D",
+    };
+  }
+
+  if (contains_any(identity, {"houdini", "houdinifx", "houdini engine"})) {
+    return CreativeAppProfile{
+      .display_name = "Houdini",
+      .details = "Building procedural worlds",
+      .state = "Houdini",
+    };
+  }
+
+  if (contains_any(identity, {"zbrush"})) {
+    return CreativeAppProfile{
+      .display_name = "ZBrush",
+      .details = "Sculpting characters",
+      .state = "ZBrush",
+    };
+  }
+
+  if (contains_any(identity, {"sketchup", "trimble sketchup"})) {
+    return CreativeAppProfile{
+      .display_name = "SketchUp",
+      .details = "Designing 3D spaces",
+      .state = "SketchUp",
+    };
+  }
+
+  if (contains_any(identity, {"ue4editor", "ue5editor", "unreal editor", "unrealengine"})) {
+    return CreativeAppProfile{
+      .display_name = "Unreal Engine",
+      .details = "Building 3D worlds",
+      .state = "Unreal Engine",
+    };
+  }
+
+  if (contains_any(identity, {"unity editor", "unity.exe", "unity hub"})) {
+    return CreativeAppProfile{
+      .display_name = "Unity",
+      .details = "Building real-time 3D",
+      .state = "Unity",
+    };
+  }
+
+  if (contains_any(identity, {"godot"})) {
+    return CreativeAppProfile{
+      .display_name = "Godot",
+      .details = "Building game worlds",
+      .state = "Godot",
+    };
+  }
+
+  if (contains_any(identity, {"marmoset", "toolbag"})) {
+    return CreativeAppProfile{
+      .display_name = "Marmoset Toolbag",
+      .details = "Rendering assets",
+      .state = "Toolbag",
+    };
+  }
+
+  if (contains_any(identity, {"daz studio", "dazstudio"})) {
+    return CreativeAppProfile{
+      .display_name = "DAZ Studio",
+      .details = "Posing and rendering",
+      .state = "DAZ Studio",
+    };
+  }
+
+  return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<CreativeAppProfile>
 match_creative_app(const rpc::ActiveWindowInfo& snapshot) {
   const std::string identity = creative_identity(snapshot);
 
@@ -67,6 +168,10 @@ match_creative_app(const rpc::ActiveWindowInfo& snapshot) {
       .details = "Producing music",
       .state = "FL Studio",
     };
+  }
+
+  if (auto profile = match_3d_app(identity); profile.has_value()) {
+    return profile;
   }
 
   if (contains_any(identity, {"krita"})) {

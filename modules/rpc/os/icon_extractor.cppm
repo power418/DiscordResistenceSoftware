@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <cwctype>
@@ -123,6 +124,88 @@ inline void release_com(T*& ptr) {
   }
 }
 
+[[nodiscard]] inline HICON extract_jumbo_icon(const std::wstring& exe_path);
+[[nodiscard]] inline HICON extract_basic_icon(const std::wstring& exe_path);
+[[nodiscard]] inline HICON extract_window_icon(HWND hwnd);
+[[nodiscard]] inline bool window_icon_matches_exe(HWND hwnd, std::string_view exe_path);
+
+struct IconCandidate {
+  HICON handle = nullptr;
+  int width = 0;
+  int height = 0;
+  int priority = 0;
+};
+
+[[nodiscard]] inline IconCandidate make_icon_candidate(HICON icon, int priority) {
+  IconCandidate candidate{};
+  candidate.handle = icon;
+  candidate.priority = priority;
+
+  if (!icon) {
+    return candidate;
+  }
+
+  ICONINFO icon_info{};
+  if (!GetIconInfo(icon, &icon_info)) {
+    return candidate;
+  }
+
+  BITMAP bm{};
+  if (GetObject(icon_info.hbmColor ? icon_info.hbmColor : icon_info.hbmMask,
+                sizeof(BITMAP), &bm) != 0) {
+    candidate.width = bm.bmWidth;
+    candidate.height = icon_info.hbmColor ? bm.bmHeight : bm.bmHeight / 2;
+  }
+
+  if (icon_info.hbmColor) DeleteObject(icon_info.hbmColor);
+  if (icon_info.hbmMask) DeleteObject(icon_info.hbmMask);
+
+  return candidate;
+}
+
+[[nodiscard]] inline HICON pick_best_icon(std::vector<IconCandidate>& candidates) {
+  std::size_t best_index = candidates.size();
+  std::uint64_t best_area = 0;
+  int best_priority = -1;
+
+  for (std::size_t index = 0; index < candidates.size(); ++index) {
+    const auto& candidate = candidates[index];
+    if (!candidate.handle || candidate.width <= 0 || candidate.height <= 0) {
+      continue;
+    }
+
+    const std::uint64_t area = static_cast<std::uint64_t>(candidate.width) *
+                               static_cast<std::uint64_t>(candidate.height);
+    if (best_index == candidates.size() ||
+        area > best_area ||
+        (area == best_area && candidate.priority > best_priority)) {
+      best_index = index;
+      best_area = area;
+      best_priority = candidate.priority;
+    }
+  }
+
+  if (best_index == candidates.size()) {
+    for (auto& candidate : candidates) {
+      if (candidate.handle) {
+        DestroyIcon(candidate.handle);
+        candidate.handle = nullptr;
+      }
+    }
+    return nullptr;
+  }
+
+  const HICON selected = candidates[best_index].handle;
+  for (std::size_t index = 0; index < candidates.size(); ++index) {
+    if (index != best_index && candidates[index].handle) {
+      DestroyIcon(candidates[index].handle);
+      candidates[index].handle = nullptr;
+    }
+  }
+
+  return selected;
+}
+
 // Try to get a high-res icon (256x256 jumbo) via the shell image list.
 [[nodiscard]] inline HICON extract_jumbo_icon(const std::wstring& exe_path) {
   ComApartment com_apartment{};
@@ -164,6 +247,33 @@ inline void release_com(T*& ptr) {
   }
 
   return CopyIcon(hIcon);
+}
+
+[[nodiscard]] inline HICON extract_best_icon(std::uintptr_t window_handle,
+                                             std::string_view exe_path) {
+  std::vector<IconCandidate> candidates;
+
+  if (window_handle != 0 && icon_detail::window_icon_matches_exe(
+        reinterpret_cast<HWND>(window_handle), exe_path)) {
+    if (HICON window_icon = icon_detail::extract_window_icon(reinterpret_cast<HWND>(window_handle))) {
+      candidates.push_back(make_icon_candidate(window_icon, 2));
+    }
+  }
+
+  if (!exe_path.empty()) {
+    const std::wstring wide_path = utf8_to_wide(exe_path);
+    if (!wide_path.empty()) {
+      if (HICON jumbo_icon = extract_jumbo_icon(wide_path)) {
+        candidates.push_back(make_icon_candidate(jumbo_icon, 3));
+      }
+
+      if (HICON basic_icon = extract_basic_icon(wide_path)) {
+        candidates.push_back(make_icon_candidate(basic_icon, 1));
+      }
+    }
+  }
+
+  return pick_best_icon(candidates);
 }
 
 [[nodiscard]] inline HICON extract_window_icon(HWND hwnd) {
@@ -294,6 +404,10 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
     return {};
   }
 
+  // Discord recommends 1024x1024 art assets. Upscaling here helps the hosted
+  // image stay sharp after Discord fetches and resizes it for the profile card.
+  constexpr UINT target_size = 1024;
+
   ComApartment com_apartment{};
 
   IWICImagingFactory* factory = nullptr;
@@ -301,6 +415,8 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
   IWICBitmapFrameEncode* frame = nullptr;
   IPropertyBag2* properties = nullptr;
   IStream* stream = nullptr;
+  IWICBitmap* source_bitmap = nullptr;
+  IWICBitmapScaler* scaler = nullptr;
 
   HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_IWICImagingFactory,
@@ -317,13 +433,26 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
     hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
   }
   if (SUCCEEDED(hr)) {
+    hr = factory->CreateBitmapFromMemory(
+      static_cast<UINT>(width), static_cast<UINT>(height),
+      GUID_WICPixelFormat32bppBGRA, static_cast<UINT>(width * 4),
+      static_cast<UINT>(bgra.size()), const_cast<BYTE*>(bgra.data()), &source_bitmap);
+  }
+  if (SUCCEEDED(hr) && (width != static_cast<int>(target_size) || height != static_cast<int>(target_size))) {
+    hr = factory->CreateBitmapScaler(&scaler);
+  }
+  if (SUCCEEDED(hr) && scaler) {
+    hr = scaler->Initialize(source_bitmap, target_size, target_size,
+                            WICBitmapInterpolationModeHighQualityCubic);
+  }
+  if (SUCCEEDED(hr)) {
     hr = encoder->CreateNewFrame(&frame, &properties);
   }
   if (SUCCEEDED(hr)) {
     hr = frame->Initialize(properties);
   }
   if (SUCCEEDED(hr)) {
-    hr = frame->SetSize(static_cast<UINT>(width), static_cast<UINT>(height));
+    hr = frame->SetSize(target_size, target_size);
   }
   if (SUCCEEDED(hr)) {
     WICPixelFormatGUID pixel_format = GUID_WICPixelFormat32bppBGRA;
@@ -333,10 +462,10 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
     }
   }
   if (SUCCEEDED(hr)) {
-    const UINT stride = static_cast<UINT>(width * 4);
-    const UINT data_size = static_cast<UINT>(bgra.size());
-    hr = frame->WritePixels(static_cast<UINT>(height), stride, data_size,
-                            const_cast<BYTE*>(bgra.data()));
+    IWICBitmapSource* bitmap_source = scaler
+      ? reinterpret_cast<IWICBitmapSource*>(scaler)
+      : reinterpret_cast<IWICBitmapSource*>(source_bitmap);
+    hr = frame->WriteSource(bitmap_source, nullptr);
   }
   if (SUCCEEDED(hr)) {
     hr = frame->Commit();
@@ -363,6 +492,8 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
 
   release_com(properties);
   release_com(frame);
+  release_com(scaler);
+  release_com(source_bitmap);
   release_com(encoder);
   release_com(stream);
   release_com(factory);
@@ -373,27 +504,13 @@ encode_png_bgra(const std::vector<std::uint8_t>& bgra, int width, int height) {
 } // namespace icon_detail
 
 /// Extract the best available icon for a foreground window/executable and return it as PNG bytes.
-/// Tries the window icon first, then falls back to the executable icon.
+/// Picks the highest-resolution icon available from the window or the executable,
+/// then upscales the final PNG to a Discord-friendly asset size.
 /// Uses Win32 GDI for icon extraction + Windows Imaging Component for PNG encoding.
 /// Returns empty vector on failure.
 [[nodiscard]] inline std::vector<std::uint8_t>
 extract_icon_png(std::uintptr_t window_handle, std::string_view exe_path) {
-  HICON hIcon = nullptr;
-
-  if (window_handle != 0 && icon_detail::window_icon_matches_exe(
-        reinterpret_cast<HWND>(window_handle), exe_path)) {
-    hIcon = icon_detail::extract_window_icon(reinterpret_cast<HWND>(window_handle));
-  }
-
-  if (!hIcon && !exe_path.empty()) {
-    const std::wstring wide_path = icon_detail::utf8_to_wide(exe_path);
-    if (!wide_path.empty()) {
-      hIcon = icon_detail::extract_jumbo_icon(wide_path);
-      if (!hIcon) {
-        hIcon = icon_detail::extract_basic_icon(wide_path);
-      }
-    }
-  }
+  HICON hIcon = icon_detail::extract_best_icon(window_handle, exe_path);
 
   if (!hIcon) return {};
 
@@ -414,13 +531,7 @@ extract_icon_png(std::uintptr_t window_handle, std::string_view exe_path) {
 extract_icon_png(std::string_view exe_path) {
   if (exe_path.empty()) return {};
 
-  const std::wstring wide_path = icon_detail::utf8_to_wide(exe_path);
-  if (wide_path.empty()) return {};
-
-  HICON hIcon = icon_detail::extract_jumbo_icon(wide_path);
-  if (!hIcon) {
-    hIcon = icon_detail::extract_basic_icon(wide_path);
-  }
+  HICON hIcon = icon_detail::extract_best_icon(0, exe_path);
   if (!hIcon) return {};
 
   int width = 0;

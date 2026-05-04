@@ -6,3 +6,4 @@ build/*
 compile_commands.json
 
 .env
+icon_cache.json

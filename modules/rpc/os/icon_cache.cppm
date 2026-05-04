@@ -14,7 +14,6 @@ module;
 #include <unordered_map>
 #include <vector>
 
-#include <stb_image.h>
 #include <nlohmann/json.hpp>
 
 export module rpc.os.icon_cache;
@@ -28,7 +27,7 @@ export namespace rpc {
 
 class IconCache {
 public:
-  static constexpr std::uint32_t cache_schema_version = 5;
+  static constexpr std::uint32_t cache_schema_version = 6;
 
   /// Try to get a cached icon URL for the given exe, or extract + upload it.
   /// Returns the public image URL, or empty string on failure.
@@ -81,22 +80,7 @@ public:
       warned_anonymous_upload = true;
     }
 
-    // 4. Prefer bundled resource icons for known creative apps.
-    if (auto resource_data = load_bundled_icon(exe_path); !resource_data.bytes.empty()) {
-      rpc::log::info("Using bundled icon from res for: {}", exe_path);
-      auto url = rpc::net::upload_to_imgur(resource_data.bytes, imgur_client_id,
-                                           resource_data.file_name, resource_data.content_type);
-      if (url.has_value() && !url->empty()) {
-        record_upload_success(key, *url);
-        save_file_cache();
-        rpc::log::info("Icon uploaded: {} -> {}", key, *url);
-        return *url;
-      }
-
-      rpc::log::warn("Bundled icon upload failed for: {}", key);
-    }
-
-    // 5. Fallback to the active window first, then the exe icon.
+    // 4. Fallback to the active window first, then the exe icon.
     rpc::log::info("Extracting icon from: {}", exe_path);
     auto image_data = rpc::extract_icon_png(window_handle, exe_path);
     if (image_data.empty()) {
@@ -106,7 +90,7 @@ public:
 
     rpc::log::info("Icon extracted ({} bytes), uploading to public host...", image_data.size());
 
-    // 6. Upload to a public host
+    // 5. Upload to a public host
     auto url = rpc::net::upload_to_imgur(image_data, imgur_client_id);
     if (!url.has_value() || url->empty()) {
       rpc::log::warn("Icon upload failed for: {}", key);
@@ -130,12 +114,6 @@ private:
     std::uint32_t failure_count = 0;
   };
 
-  struct BundledIconData {
-    std::vector<std::uint8_t> bytes;
-    std::string file_name;
-    std::string content_type;
-  };
-
   std::unordered_map<std::string, CacheRecord> memory_cache_;
   bool file_cache_loaded_ = false;
 
@@ -152,73 +130,6 @@ private:
     return normalized;
   }
 
-  [[nodiscard]] static std::filesystem::path resource_root() {
-#ifdef SOFTWARE_RPC_RESOURCE_DIR
-    return std::filesystem::path(SOFTWARE_RPC_RESOURCE_DIR);
-#else
-    return "res";
-#endif
-  }
-
-  [[nodiscard]] static bool is_bundled_icon_app(std::string_view normalized_exe_path) {
-    return normalized_exe_path.find("ableton") != std::string::npos ||
-           normalized_exe_path.find("fl64") != std::string::npos ||
-           normalized_exe_path.find("fl studio") != std::string::npos ||
-           normalized_exe_path.find("image-line") != std::string::npos;
-  }
-
-  [[nodiscard]] static std::filesystem::path bundled_icon_path(std::string_view exe_path) {
-    std::string normalized = cache_key(exe_path);
-    if (normalized.empty() || !is_bundled_icon_app(normalized)) {
-      return {};
-    }
-
-    if (normalized.find("ableton") != std::string::npos) {
-      return resource_root() / "icon" / "ableton.png";
-    }
-
-    if (normalized.find("fl64") != std::string::npos ||
-        normalized.find("fl studio") != std::string::npos ||
-        normalized.find("image-line") != std::string::npos) {
-      return resource_root() / "icon" / "fl-studio.webp";
-    }
-
-    return {};
-  }
-
-  [[nodiscard]] static std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file.is_open()) {
-      return {};
-    }
-
-    file.seekg(0, std::ios::end);
-    const auto size = file.tellg();
-    if (size <= 0) {
-      return {};
-    }
-
-    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
-    file.seekg(0, std::ios::beg);
-    file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-    if (!file) {
-      return {};
-    }
-
-    return bytes;
-  }
-
-  [[nodiscard]] static bool is_valid_image(const std::vector<std::uint8_t>& bytes) {
-    if (bytes.empty()) {
-      return false;
-    }
-
-    int width = 0;
-    int height = 0;
-    int comp = 0;
-    return stbi_info_from_memory(bytes.data(), static_cast<int>(bytes.size()),
-                                 &width, &height, &comp) != 0;
-  }
 
   [[nodiscard]] static std::uint64_t retry_delay_seconds(std::uint32_t failure_count) {
     constexpr std::uint64_t initial_delay_seconds = 10ULL * 60ULL;
@@ -259,42 +170,6 @@ private:
     using namespace std::chrono;
     return static_cast<std::uint64_t>(
       duration_cast<seconds>(system_clock::now().time_since_epoch()).count());
-  }
-
-  [[nodiscard]] static BundledIconData load_bundled_icon(std::string_view exe_path) {
-    const auto path = bundled_icon_path(exe_path);
-    if (path.empty() || !std::filesystem::exists(path)) {
-      return {};
-    }
-
-    auto bytes = read_file_bytes(path);
-    if (!is_valid_image(bytes)) {
-      rpc::log::warn("Bundled icon is not a valid image: {}", path.string());
-      return {};
-    }
-
-    BundledIconData data;
-    data.bytes = std::move(bytes);
-    data.file_name = path.filename().string();
-
-    std::string extension = path.extension().string();
-    for (auto& c : extension) {
-      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-
-    if (extension == ".png") {
-      data.content_type = "image/png";
-    } else if (extension == ".webp") {
-      data.content_type = "image/webp";
-    } else if (extension == ".jpg" || extension == ".jpeg") {
-      data.content_type = "image/jpeg";
-    } else if (extension == ".gif") {
-      data.content_type = "image/gif";
-    } else {
-      data.content_type = "application/octet-stream";
-    }
-
-    return data;
   }
 
   [[nodiscard]] static std::filesystem::path cache_file_path() {
@@ -346,7 +221,7 @@ private:
       }
 
       const std::uint32_t schema_version = json.value("schema_version", 0U);
-      if (schema_version < 4U || schema_version > cache_schema_version) {
+      if (schema_version != cache_schema_version) {
         rpc::log::info("Ignoring legacy icon cache at {}", path.string());
         return;
       }

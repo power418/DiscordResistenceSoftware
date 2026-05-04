@@ -47,11 +47,6 @@ target_include_directories(rpc_core
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
-target_compile_definitions(rpc_core
-  PUBLIC
-    SOFTWARE_RPC_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/res"
-)
-
 target_compile_features(rpc_core PUBLIC cxx_std_20)
 
 software_rpc_add_dependencies(rpc_core)
@@ -131,12 +126,6 @@ add_executable(software_discord_rpc
 )
 
 target_link_libraries(software_discord_rpc PRIVATE rpc_core)
-
-add_custom_command(TARGET software_discord_rpc POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${CMAKE_CURRENT_SOURCE_DIR}/res"
-          "$<TARGET_FILE_DIR:software_discord_rpc>/res"
-)
 
 if (SOFTWARE_RPC_ENABLE_LTO)
   set_property(TARGET rpc_core PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
