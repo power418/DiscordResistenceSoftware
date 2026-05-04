@@ -11,6 +11,8 @@ module;
 #include <thread>
 
 #include <rpc/platform/tray.hpp>
+#include <rpc/platform/recent_activity_dialog.hpp>
+#include <rpc/platform/theme.hpp>
 #include <rpc/config/win32.h>
 
 #if defined(_WIN32)
@@ -104,6 +106,7 @@ public:
         orchestrator_(options.poll_interval) {}
 
   ~WindowsAppShell() {
+    rpc::platform::stop_theme_sync();
     if (app_icon_owned_ && app_icon_) {
       DestroyIcon(app_icon_);
     }
@@ -197,6 +200,7 @@ private:
       return false;
     }
 
+    rpc::platform::start_theme_sync(hwnd_);
     apply_window_icon();
     add_tray_icon();
 
@@ -220,11 +224,12 @@ private:
       : summary;
     const std::wstring wide_text = utf8_to_wide(text);
 
-    MessageBoxW(
+    rpc::platform::show_recent_activity_dialog(
       hwnd_,
-      wide_text.c_str(),
-      win::recent_activity_title.data(),
-      MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+      instance_,
+      app_icon_,
+      win::recent_activity_title,
+      wide_text);
   }
 
   void hide_splash() const {
@@ -284,6 +289,11 @@ private:
     SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(app_icon_));
   }
 
+  void sync_window_theme() const {
+    rpc::platform::apply_window_theme(hwnd_);
+    InvalidateRect(hwnd_, nullptr, TRUE);
+  }
+
   void paint() const {
     PAINTSTRUCT paint_struct{};
     HDC hdc = BeginPaint(hwnd_, &paint_struct);
@@ -291,12 +301,17 @@ private:
     RECT rect{};
     GetClientRect(hwnd_, &rect);
 
-    HBRUSH background = CreateSolidBrush(RGB(32, 34, 43));
+    const bool dark_mode = rpc::platform::is_system_dark_mode();
+    const COLORREF background_color = dark_mode ? RGB(32, 34, 43) : RGB(246, 247, 250);
+    const COLORREF title_color = dark_mode ? RGB(245, 245, 247) : RGB(22, 24, 29);
+    const COLORREF body_color = dark_mode ? RGB(190, 198, 215) : RGB(79, 86, 104);
+
+    HBRUSH background = CreateSolidBrush(background_color);
     FillRect(hdc, &rect, background);
     DeleteObject(background);
 
     SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(245, 245, 247));
+    SetTextColor(hdc, title_color);
 
     HFONT title_font = CreateFontW(
       24, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
@@ -311,7 +326,7 @@ private:
     HGDIOBJ previous_font = SelectObject(hdc, title_font);
     DrawTextW(hdc, win::app_name.data(), -1, &title_rect, DT_LEFT | DT_SINGLELINE);
 
-    SetTextColor(hdc, RGB(190, 198, 215));
+    SetTextColor(hdc, body_color);
     RECT body_rect{24, 76, rect.right - 24, rect.bottom - 24};
     SelectObject(hdc, body_font);
     DrawTextW(hdc, win::splash_message.data(),
@@ -351,11 +366,18 @@ private:
         paint();
         return 0;
 
+      case WM_SETTINGCHANGE:
+      case WM_THEMECHANGED:
+      case rpc::platform::kThemeSyncMessage:
+        sync_window_theme();
+        return 0;
+
       case WM_CLOSE:
         hide_splash();
         return 0;
 
       case WM_DESTROY:
+        rpc::platform::stop_theme_sync();
         remove_tray_icon();
         PostQuitMessage(0);
         return 0;

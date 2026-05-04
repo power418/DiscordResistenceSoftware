@@ -1,5 +1,10 @@
 {
   "entries": {
+    "c:/program files/ableton/usb audio driver/x64/abletonaudiocpl.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/324lzx.png"
+    },
     "c:/program files/blender foundation/blender 5.1/blender.exe": {
       "failure_count": 0,
       "next_retry_unix": 0,

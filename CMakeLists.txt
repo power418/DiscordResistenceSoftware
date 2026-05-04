@@ -20,6 +20,8 @@ add_library(rpc_core)
 target_sources(rpc_core
   PRIVATE
     src/app/tray.cpp
+    src/app/theme.cpp
+    src/app/recent_activity_dialog.cpp
     src/config/fonts.cpp
     src/config/win32.cpp
     src/config/url.cpp
@@ -47,6 +49,8 @@ target_sources(rpc_core
       include/rpc/config/win32.h
       include/rpc/config/url.h
       include/rpc/platform/icon.hpp
+      include/rpc/platform/recent_activity_dialog.hpp
+      include/rpc/platform/theme.hpp
       include/rpc/platform/tray.hpp
 )
 
@@ -65,7 +69,7 @@ target_compile_features(rpc_core PUBLIC cxx_std_20)
 software_rpc_add_dependencies(rpc_core)
 
 if (WIN32)
-  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 windowscodecs winhttp crypt32)
+  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 windowscodecs winhttp crypt32 dwmapi windowsapp)
 endif()
 
 if (UNIX AND NOT APPLE)
