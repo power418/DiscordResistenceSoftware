@@ -1,9 +1,7 @@
 #pragma once
 
 #if defined(_WIN32)
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
+#  include <rpc/config/win32.h>
 #  include <windows.h>
 #endif
 

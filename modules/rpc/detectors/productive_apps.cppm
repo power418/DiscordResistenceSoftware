@@ -49,19 +49,50 @@ struct ProductiveAppProfile {
   return identity;
 }
 
-[[nodiscard]] inline std::optional<ProductiveAppProfile>
-match_productive_app(const rpc::ActiveWindowInfo& snapshot) {
+// ---------------------------------------------------------------------------
+// Browser blacklist — all browsers are excluded from RPC detection
+// ---------------------------------------------------------------------------
+
+[[nodiscard]] inline bool is_browser(const rpc::ActiveWindowInfo& snapshot) {
   const std::string identity = productive_identity(snapshot);
 
-  if (productive_contains_any(identity, {"brave.exe", "brave browser",
-                                          "bravesoftware\\brave-browser",
-                                          "brave-browser"})) {
-    return ProductiveAppProfile{
-      .display_name = "Brave",
-      .details = "Browsing productively",
-      .state = "Brave Browser",
-    };
+  return productive_contains_any(identity, {
+    // Chromium-based
+    "chrome.exe",        "google chrome",     "google\\chrome",
+    "brave.exe",         "brave browser",     "bravesoftware\\brave-browser", "brave-browser",
+    "msedge.exe",        "microsoft edge",    "microsoft\\edge",
+    "opera.exe",         "opera browser",     "opera software",
+    "vivaldi.exe",       "vivaldi",
+    "arc.exe",           "arc browser",
+    "chromium.exe",      "chromium",
+
+    // Firefox-based
+    "firefox.exe",       "mozilla firefox",   "mozilla\\firefox",
+    "waterfox.exe",      "waterfox",
+    "librewolf.exe",     "librewolf",
+    "palemoon.exe",      "pale moon",
+    "floorp.exe",        "floorp",
+    "zen.exe",           "zen browser",
+
+    // Tor
+    "tor browser",       "torbrowser",
+
+    // Safari (macOS)
+    "safari",
+
+    // Generic browser identifiers
+    "browser.exe",
+  });
+}
+
+[[nodiscard]] inline std::optional<ProductiveAppProfile>
+match_productive_app(const rpc::ActiveWindowInfo& snapshot) {
+  // Browsers are explicitly excluded from RPC
+  if (is_browser(snapshot)) {
+    return std::nullopt;
   }
+
+  // Add future productive (non-browser) apps here
 
   return std::nullopt;
 }

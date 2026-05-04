@@ -12,9 +12,7 @@ module;
 #include <chrono>
 
 #if defined(_WIN32)
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
+#  include <rpc/config/win32.h>
 #  include <windows.h>
 #  include <tlhelp32.h>
 #elif defined(__linux__) && defined(SOFTWARE_RPC_HAS_X11)

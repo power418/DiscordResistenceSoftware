@@ -7,9 +7,7 @@ module;
 #include <vector>
 
 #if defined(_WIN32)
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
+#  include <rpc/config/win32.h>
 #  include <windows.h>
 #  include <wincrypt.h>
 #  include <winhttp.h>

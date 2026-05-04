@@ -21,6 +21,7 @@ target_sources(rpc_core
   PRIVATE
     src/app/tray.cpp
     src/config/fonts.cpp
+    src/config/win32.cpp
     src/config/url.cpp
     src/stb_image.cpp
   PUBLIC
@@ -43,6 +44,7 @@ target_sources(rpc_core
     FILE_SET HEADERS FILES
       include/rpc/activity.hpp
       include/rpc/config/fonts.h
+      include/rpc/config/win32.h
       include/rpc/config/url.h
       include/rpc/platform/icon.hpp
       include/rpc/platform/tray.hpp

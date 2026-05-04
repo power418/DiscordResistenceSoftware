@@ -36,6 +36,16 @@ extern const std::string_view google_fonts_link;
 extern const std::string_view font_awesome_link;
 } // namespace url
 
+namespace win32 {
+// Shared Win32 shell labels and manifest settings.
+extern const std::wstring_view app_name;
+extern const std::wstring_view window_class_name;
+extern const std::wstring_view tray_tooltip;
+extern const std::wstring_view splash_message;
+extern const std::wstring_view recent_activity_title;
+extern const std::string_view common_controls_manifest_dependency;
+} // namespace win32
+
 } // namespace config
 
 [[nodiscard]] inline Config default_config() { return {}; }

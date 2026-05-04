@@ -11,11 +11,9 @@ module;
 #include <thread>
 
 #include <rpc/platform/tray.hpp>
+#include <rpc/config/win32.h>
 
 #if defined(_WIN32)
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
 #  include <windows.h>
 #  include <rpc/platform/icon.hpp>
 #elif defined(__linux__)
@@ -34,6 +32,7 @@ export module rpc.app.shell;
 
 import rpc.core;
 import rpc.core.orchestrator;
+import rpc.config;
 import rpc.utils.logger;
 
 export namespace rpc::app {
@@ -54,7 +53,6 @@ namespace rpc::app {
 #if defined(_WIN32)
 namespace {
 
-constexpr wchar_t kWindowClassName[] = L"SoftwareDiscordRpcAppWindow";
 constexpr UINT_PTR kSplashTimer = 1001;
 constexpr UINT_PTR kPollTimer = 1002;
 constexpr UINT kTrayIconId = 1;
@@ -62,6 +60,7 @@ constexpr WORD kArrowCursorResource = 32512;
 constexpr WORD kDefaultAppIconResource = 32512;
 constexpr UINT kTraySelectMessage = 0x0400;
 constexpr UINT kTrayKeySelectMessage = 0x0401;
+namespace win = rpc::config::win32;
 
 [[nodiscard]] std::wstring utf8_to_wide(std::string_view text) {
   if (text.empty()) {
@@ -168,7 +167,7 @@ private:
     window_class.hIcon = app_icon_ ? app_icon_ : LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
     window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(kArrowCursorResource));
     window_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
-    window_class.lpszClassName = kWindowClassName;
+    window_class.lpszClassName = win::window_class_name.data();
     window_class.hIconSm = window_class.hIcon;
 
     return RegisterClassExW(&window_class) != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
@@ -182,8 +181,8 @@ private:
 
     hwnd_ = CreateWindowExW(
       WS_EX_TOPMOST | WS_EX_APPWINDOW,
-      kWindowClassName,
-      L"software_discord_rpc",
+      win::window_class_name.data(),
+      win::app_name.data(),
       WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
       x,
       y,
@@ -224,7 +223,7 @@ private:
     MessageBoxW(
       hwnd_,
       wide_text.c_str(),
-      L"Recent activity",
+      win::recent_activity_title.data(),
       MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
   }
 
@@ -242,7 +241,7 @@ private:
       .window_handle = hwnd_,
       .icon_id = kTrayIconId,
       .icon_handle = app_icon_,
-      .tooltip = L"software_discord_rpc is running",
+      .tooltip = win::tray_tooltip.data(),
     };
 
     if (!rpc::platform::add_tray_icon(config)) {
@@ -266,7 +265,7 @@ private:
     if (!rpc::platform::show_tray_balloon(
           hwnd_,
           kTrayIconId,
-          L"software_discord_rpc",
+          win::app_name.data(),
           L"Running in tray. Double-click to show.")) {
       rpc::log::warn("Tray balloon failed: {}", rpc::platform::last_tray_error());
     }
@@ -310,12 +309,12 @@ private:
 
     RECT title_rect{24, 28, rect.right - 24, 62};
     HGDIOBJ previous_font = SelectObject(hdc, title_font);
-    DrawTextW(hdc, L"software_discord_rpc", -1, &title_rect, DT_LEFT | DT_SINGLELINE);
+    DrawTextW(hdc, win::app_name.data(), -1, &title_rect, DT_LEFT | DT_SINGLELINE);
 
     SetTextColor(hdc, RGB(190, 198, 215));
     RECT body_rect{24, 76, rect.right - 24, rect.bottom - 24};
     SelectObject(hdc, body_font);
-    DrawTextW(hdc, L"Discord RPC monitor active. This window will hide to tray.",
+    DrawTextW(hdc, win::splash_message.data(),
               -1, &body_rect, DT_LEFT | DT_WORDBREAK);
 
     SelectObject(hdc, previous_font);

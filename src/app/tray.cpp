@@ -1,9 +1,9 @@
 #include <rpc/platform/tray.hpp>
+#include <rpc/config/win32.h>
+
+import rpc.config;
 
 #if defined(_WIN32)
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
 #  include <windows.h>
 #  include <commctrl.h>
 #  include <shellapi.h>
@@ -14,6 +14,7 @@ namespace {
 
 constexpr WORD kDefaultAppIconResource = 32512;
 DWORD g_last_tray_error = ERROR_SUCCESS;
+namespace win = rpc::config::win32;
 
 [[nodiscard]] HWND to_hwnd(void* handle) {
   return static_cast<HWND>(handle);
@@ -110,7 +111,9 @@ bool show_tray_balloon(void* window_handle,
   NOTIFYICONDATAW data = make_icon_data(hwnd, icon_id);
   data.uFlags = NIF_INFO;
   data.dwInfoFlags = NIIF_INFO;
-  copy_wide(data.szInfoTitle, title);
+  const wchar_t* balloon_title =
+    (title != nullptr && title[0] != L'\0') ? title : win::app_name.data();
+  copy_wide(data.szInfoTitle, balloon_title);
   copy_wide(data.szInfo, message);
 
   if (Shell_NotifyIconW(NIM_MODIFY, &data) == FALSE) {
