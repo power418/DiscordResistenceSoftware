@@ -186,7 +186,9 @@ namespace upload_detail {
 }
 
 [[nodiscard]] inline std::optional<std::string>
-upload_to_0x0st(const std::vector<std::uint8_t>& image_data) {
+upload_to_0x0st(const std::vector<std::uint8_t>& image_data,
+                std::string_view file_name,
+                std::string_view mime_type) {
   if (image_data.empty()) {
     return std::nullopt;
   }
@@ -197,15 +199,111 @@ upload_to_0x0st(const std::vector<std::uint8_t>& image_data) {
   body.append("--");
   body.append(boundary);
   body.append("\r\n");
-  body.append("Content-Disposition: form-data; name=\"file\"; filename=\"icon.png\"\r\n");
-  body.append("Content-Type: image/png\r\n\r\n");
+  body.append("Content-Disposition: form-data; name=\"file\"; filename=\"");
+  body.append(file_name);
+  body.append("\"\r\n");
+  body.append("Content-Type: ");
+  body.append(mime_type);
+  body.append("\r\n\r\n");
   body.append(reinterpret_cast<const char*>(image_data.data()), image_data.size());
   body.append("\r\n--");
   body.append(boundary);
   body.append("--\r\n");
 
-  const std::wstring content_type = L"multipart/form-data; boundary=" + to_wide(boundary);
-  return perform_request(L"0x0.st", L"/", content_type, body);
+  const std::wstring content_type_header = L"multipart/form-data; boundary=" + to_wide(boundary);
+  return perform_request(L"0x0.st", L"/", content_type_header, body);
+}
+
+[[nodiscard]] inline std::optional<std::string>
+upload_to_catbox(const std::vector<std::uint8_t>& image_data,
+                 std::string_view file_name,
+                 std::string_view mime_type) {
+  if (image_data.empty()) {
+    return std::nullopt;
+  }
+
+  constexpr char boundary[] = "----SoftwareDiscordRPCCatboxBoundary7d3e8c21";
+  std::string body;
+  body.reserve(image_data.size() + 512);
+  body.append("--");
+  body.append(boundary);
+  body.append("\r\n");
+  body.append("Content-Disposition: form-data; name=\"reqtype\"\r\n\r\nfileupload\r\n");
+  body.append("--");
+  body.append(boundary);
+  body.append("\r\n");
+  body.append("Content-Disposition: form-data; name=\"fileToUpload\"; filename=\"");
+  body.append(file_name);
+  body.append("\"\r\n");
+  body.append("Content-Type: ");
+  body.append(mime_type);
+  body.append("\r\n\r\n");
+  body.append(reinterpret_cast<const char*>(image_data.data()), image_data.size());
+  body.append("\r\n--");
+  body.append(boundary);
+  body.append("--\r\n");
+
+  const std::wstring content_type_header = L"multipart/form-data; boundary=" + to_wide(boundary);
+  auto response = perform_request(L"catbox.moe", L"/user/api.php", content_type_header, body);
+  if (!response.has_value()) {
+    return std::nullopt;
+  }
+
+  const std::string url = trim_copy(*response);
+  if (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0) {
+    return url;
+  }
+
+  return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<std::string>
+upload_to_uguu(const std::vector<std::uint8_t>& image_data,
+               std::string_view file_name,
+               std::string_view mime_type) {
+  if (image_data.empty()) {
+    return std::nullopt;
+  }
+
+  constexpr char boundary[] = "----SoftwareDiscordRPCUguuBoundary7d3e8c21";
+  std::string body;
+  body.reserve(image_data.size() + 512);
+  body.append("--");
+  body.append(boundary);
+  body.append("\r\n");
+  body.append("Content-Disposition: form-data; name=\"files[]\"; filename=\"");
+  body.append(file_name);
+  body.append("\"\r\n");
+  body.append("Content-Type: ");
+  body.append(mime_type);
+  body.append("\r\n\r\n");
+  body.append(reinterpret_cast<const char*>(image_data.data()), image_data.size());
+  body.append("\r\n--");
+  body.append(boundary);
+  body.append("--\r\n");
+
+  const std::wstring content_type_header = L"multipart/form-data; boundary=" + to_wide(boundary);
+  auto response = perform_request(L"uguu.se", L"/upload", content_type_header, body);
+  if (!response.has_value()) {
+    return std::nullopt;
+  }
+
+  try {
+    auto json = nlohmann::json::parse(*response);
+    if (!json.value("success", false) || !json.contains("files") || !json["files"].is_array() ||
+        json["files"].empty()) {
+      return std::nullopt;
+    }
+
+    const auto& file = json["files"].front();
+    if (file.contains("url") && file["url"].is_string()) {
+      return file["url"].get<std::string>();
+    }
+  } catch (...) {
+    // JSON parse failure
+  }
+
+  return std::nullopt;
 }
 
 [[nodiscard]] inline std::optional<std::string>
@@ -309,10 +407,25 @@ upload_to_imgur_internal(const std::vector<std::uint8_t>& image_data,
 } // namespace upload_detail
 
 /// Upload image data to a public host and return the public URL.
-/// Uses Imgur when a client ID is provided, otherwise falls back to anonymous upload.
+/// Uses Imgur when a client ID is provided, otherwise falls back to anonymous
+/// hosts in order: Catbox, Uguu, then 0x0.st.
+[[nodiscard]] inline std::optional<std::string>
+upload_to_imgur(const std::vector<std::uint8_t>& image_data,
+                std::string_view client_id,
+                std::string_view file_name,
+                std::string_view content_type);
+
 [[nodiscard]] inline std::optional<std::string>
 upload_to_imgur(const std::vector<std::uint8_t>& image_data,
                 std::string_view client_id) {
+  return upload_to_imgur(image_data, client_id, "icon.png", "image/png");
+}
+
+[[nodiscard]] inline std::optional<std::string>
+upload_to_imgur(const std::vector<std::uint8_t>& image_data,
+                std::string_view client_id,
+                std::string_view file_name,
+                std::string_view content_type) {
   if (image_data.empty()) return std::nullopt;
 
   if (!client_id.empty()) {
@@ -322,7 +435,17 @@ upload_to_imgur(const std::vector<std::uint8_t>& image_data,
     }
   }
 
-  return upload_detail::upload_to_0x0st(image_data);
+  if (auto url = upload_detail::upload_to_catbox(image_data, file_name, content_type);
+      url.has_value() && !url->empty()) {
+    return url;
+  }
+
+  if (auto url = upload_detail::upload_to_uguu(image_data, file_name, content_type);
+      url.has_value() && !url->empty()) {
+    return url;
+  }
+
+  return upload_detail::upload_to_0x0st(image_data, file_name, content_type);
 }
 
 #else
@@ -331,6 +454,14 @@ upload_to_imgur(const std::vector<std::uint8_t>& image_data,
 [[nodiscard]] inline std::optional<std::string>
 upload_to_imgur(const std::vector<std::uint8_t>& /*image_data*/,
                 std::string_view /*client_id*/) {
+  return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<std::string>
+upload_to_imgur(const std::vector<std::uint8_t>& /*image_data*/,
+                std::string_view /*client_id*/,
+                std::string_view /*file_name*/,
+                std::string_view /*content_type*/) {
   return std::nullopt;
 }
 

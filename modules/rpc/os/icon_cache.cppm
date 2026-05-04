@@ -1,10 +1,13 @@
 module;
 
+#include <chrono>
 #include <cstdint>
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <utility>
 #include <system_error>
 #include <string>
 #include <string_view>
@@ -25,7 +28,7 @@ export namespace rpc {
 
 class IconCache {
 public:
-  static constexpr std::uint32_t cache_schema_version = 4;
+  static constexpr std::uint32_t cache_schema_version = 5;
 
   /// Try to get a cached icon URL for the given exe, or extract + upload it.
   /// Returns the public image URL, or empty string on failure.
@@ -43,31 +46,48 @@ public:
     const std::string key = cache_key(exe_path);
     if (key.empty()) return {};
 
+    const std::uint64_t now = current_unix_timestamp_seconds();
+
     // 1. Check memory cache
     auto it = memory_cache_.find(key);
     if (it != memory_cache_.end()) {
-      return it->second;
+      if (!it->second.url.empty()) {
+        return it->second.url;
+      }
+
+      if (it->second.next_retry_unix > now) {
+        return {};
+      }
     }
 
     // 2. Check file cache
     ensure_file_cache_loaded();
     it = memory_cache_.find(key);
     if (it != memory_cache_.end()) {
-      return it->second;
+      if (!it->second.url.empty()) {
+        return it->second.url;
+      }
+
+      if (it->second.next_retry_unix > now) {
+        return {};
+      }
     }
 
     // 3. Check whether a direct image URL can be uploaded
     const std::string imgur_client_id = rpc::env_or("IMGUR_CLIENT_ID", "");
-    if (imgur_client_id.empty()) {
+    static bool warned_anonymous_upload = false;
+    if (imgur_client_id.empty() && !warned_anonymous_upload) {
       rpc::log::debug("IMGUR_CLIENT_ID not set; using anonymous upload fallback");
+      warned_anonymous_upload = true;
     }
 
     // 4. Prefer bundled resource icons for known creative apps.
-    if (auto resource_data = load_bundled_icon(exe_path); !resource_data.empty()) {
+    if (auto resource_data = load_bundled_icon(exe_path); !resource_data.bytes.empty()) {
       rpc::log::info("Using bundled icon from res for: {}", exe_path);
-      auto url = rpc::net::upload_to_imgur(resource_data, imgur_client_id);
+      auto url = rpc::net::upload_to_imgur(resource_data.bytes, imgur_client_id,
+                                           resource_data.file_name, resource_data.content_type);
       if (url.has_value() && !url->empty()) {
-        memory_cache_[key] = *url;
+        record_upload_success(key, *url);
         save_file_cache();
         rpc::log::info("Icon uploaded: {} -> {}", key, *url);
         return *url;
@@ -90,20 +110,33 @@ public:
     auto url = rpc::net::upload_to_imgur(image_data, imgur_client_id);
     if (!url.has_value() || url->empty()) {
       rpc::log::warn("Icon upload failed for: {}", key);
+      record_upload_failure(key);
       return {};
     }
 
     rpc::log::info("Icon uploaded: {} -> {}", key, *url);
 
     // 7. Cache the result
-    memory_cache_[key] = *url;
+    record_upload_success(key, *url);
     save_file_cache();
 
     return *url;
   }
 
 private:
-  std::unordered_map<std::string, std::string> memory_cache_;
+  struct CacheRecord {
+    std::string url;
+    std::uint64_t next_retry_unix = 0;
+    std::uint32_t failure_count = 0;
+  };
+
+  struct BundledIconData {
+    std::vector<std::uint8_t> bytes;
+    std::string file_name;
+    std::string content_type;
+  };
+
+  std::unordered_map<std::string, CacheRecord> memory_cache_;
   bool file_cache_loaded_ = false;
 
   [[nodiscard]] static std::string cache_key(std::string_view exe_path) {
@@ -187,7 +220,48 @@ private:
                                  &width, &height, &comp) != 0;
   }
 
-  [[nodiscard]] static std::vector<std::uint8_t> load_bundled_icon(std::string_view exe_path) {
+  [[nodiscard]] static std::uint64_t retry_delay_seconds(std::uint32_t failure_count) {
+    constexpr std::uint64_t initial_delay_seconds = 10ULL * 60ULL;
+    constexpr std::uint64_t maximum_delay_seconds = 24ULL * 60ULL * 60ULL;
+
+    if (failure_count <= 1U) {
+      return initial_delay_seconds;
+    }
+
+    std::uint64_t delay = initial_delay_seconds;
+    const std::uint32_t doublings = std::min<std::uint32_t>(failure_count - 1U, 8U);
+    for (std::uint32_t i = 0; i < doublings; ++i) {
+      if (delay >= maximum_delay_seconds / 2ULL) {
+        return maximum_delay_seconds;
+      }
+      delay *= 2ULL;
+    }
+
+    return std::min(delay, maximum_delay_seconds);
+  }
+
+  void record_upload_success(const std::string& key, const std::string& url) {
+    auto& entry = memory_cache_[key];
+    entry.url = url;
+    entry.failure_count = 0;
+    entry.next_retry_unix = 0;
+  }
+
+  void record_upload_failure(const std::string& key) {
+    auto& entry = memory_cache_[key];
+    entry.url.clear();
+    entry.failure_count = entry.failure_count == 0 ? 1U : entry.failure_count + 1U;
+    entry.next_retry_unix = current_unix_timestamp_seconds() + retry_delay_seconds(entry.failure_count);
+    save_file_cache();
+  }
+
+  [[nodiscard]] static std::uint64_t current_unix_timestamp_seconds() {
+    using namespace std::chrono;
+    return static_cast<std::uint64_t>(
+      duration_cast<seconds>(system_clock::now().time_since_epoch()).count());
+  }
+
+  [[nodiscard]] static BundledIconData load_bundled_icon(std::string_view exe_path) {
     const auto path = bundled_icon_path(exe_path);
     if (path.empty() || !std::filesystem::exists(path)) {
       return {};
@@ -199,7 +273,28 @@ private:
       return {};
     }
 
-    return bytes;
+    BundledIconData data;
+    data.bytes = std::move(bytes);
+    data.file_name = path.filename().string();
+
+    std::string extension = path.extension().string();
+    for (auto& c : extension) {
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    if (extension == ".png") {
+      data.content_type = "image/png";
+    } else if (extension == ".webp") {
+      data.content_type = "image/webp";
+    } else if (extension == ".jpg" || extension == ".jpeg") {
+      data.content_type = "image/jpeg";
+    } else if (extension == ".gif") {
+      data.content_type = "image/gif";
+    } else {
+      data.content_type = "application/octet-stream";
+    }
+
+    return data;
   }
 
   [[nodiscard]] static std::filesystem::path cache_file_path() {
@@ -246,8 +341,12 @@ private:
     try {
       nlohmann::json json;
       file >> json;
-      if (!json.is_object() ||
-          json.value("schema_version", 0U) != cache_schema_version) {
+      if (!json.is_object()) {
+        return;
+      }
+
+      const std::uint32_t schema_version = json.value("schema_version", 0U);
+      if (schema_version < 4U || schema_version > cache_schema_version) {
         rpc::log::info("Ignoring legacy icon cache at {}", path.string());
         return;
       }
@@ -258,8 +357,39 @@ private:
       }
 
       for (auto& [key, value] : entries_it->items()) {
+        CacheRecord record;
         if (value.is_string()) {
-          memory_cache_[key] = value.get<std::string>();
+          record.url = value.get<std::string>();
+        } else if (value.is_object()) {
+          if (const auto url_it = value.find("url"); url_it != value.end() && url_it->is_string()) {
+            record.url = url_it->get<std::string>();
+          }
+
+          if (const auto failure_it = value.find("failure_count");
+              failure_it != value.end() && failure_it->is_number_unsigned()) {
+            record.failure_count = failure_it->get<std::uint32_t>();
+          } else if (const auto failure_it = value.find("failure_count");
+                     failure_it != value.end() && failure_it->is_number_integer()) {
+            const auto failure_count = failure_it->get<std::int64_t>();
+            record.failure_count = failure_count > 0
+                                 ? static_cast<std::uint32_t>(failure_count)
+                                 : 0U;
+          }
+
+          if (const auto retry_it = value.find("next_retry_unix");
+              retry_it != value.end() && retry_it->is_number_unsigned()) {
+            record.next_retry_unix = retry_it->get<std::uint64_t>();
+          } else if (const auto retry_it = value.find("next_retry_unix");
+                     retry_it != value.end() && retry_it->is_number_integer()) {
+            const auto next_retry_unix = retry_it->get<std::int64_t>();
+            record.next_retry_unix = next_retry_unix > 0
+                                   ? static_cast<std::uint64_t>(next_retry_unix)
+                                   : 0ULL;
+          }
+        }
+
+        if (!record.url.empty() || record.failure_count > 0U || record.next_retry_unix > 0ULL) {
+          memory_cache_[key] = std::move(record);
         }
       }
       rpc::log::info("Loaded {} cached icon URLs from {}", memory_cache_.size(),
@@ -279,9 +409,13 @@ private:
     nlohmann::json json = nlohmann::json::object();
     json["schema_version"] = cache_schema_version;
     json["entries"] = nlohmann::json::object();
-    for (const auto& [key, url] : memory_cache_) {
-      if (!url.empty()) {
-        json["entries"][key] = url;
+    for (const auto& [key, record] : memory_cache_) {
+      if (!record.url.empty() || record.failure_count > 0U || record.next_retry_unix > 0ULL) {
+        json["entries"][key] = {
+          {"url", record.url},
+          {"failure_count", record.failure_count},
+          {"next_retry_unix", record.next_retry_unix},
+        };
       }
     }
 
