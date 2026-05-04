@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr WORD kInfoIconResource = 32516;
+constexpr WORD kDefaultAppIconResource = 32512;
 DWORD g_last_tray_error = ERROR_SUCCESS;
 
 [[nodiscard]] HWND to_hwnd(void* handle) {
@@ -76,7 +76,9 @@ bool add_tray_icon(const TrayConfig& config) {
   NOTIFYICONDATAW data = make_icon_data(hwnd, config.icon_id);
   data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
   data.uCallbackMessage = kTrayCallbackMessage;
-  data.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(kInfoIconResource));
+  data.hIcon = config.icon_handle
+    ? static_cast<HICON>(config.icon_handle)
+    : LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
   copy_wide(data.szTip, config.tooltip);
 
   if (Shell_NotifyIconW(NIM_ADD, &data) == FALSE) {

@@ -20,6 +20,8 @@ add_library(rpc_core)
 target_sources(rpc_core
   PRIVATE
     src/app/tray.cpp
+    src/config/fonts.cpp
+    src/config/url.cpp
     src/stb_image.cpp
   PUBLIC
     FILE_SET CXX_MODULES FILES
@@ -40,8 +42,15 @@ target_sources(rpc_core
       modules/rpc/utils/logger.cppm
     FILE_SET HEADERS FILES
       include/rpc/activity.hpp
+      include/rpc/config/fonts.h
+      include/rpc/config/url.h
+      include/rpc/platform/icon.hpp
       include/rpc/platform/tray.hpp
 )
+
+if (WIN32)
+  target_sources(rpc_core PRIVATE src/app/icon.cpp)
+endif()
 
 target_include_directories(rpc_core
   PUBLIC
@@ -128,6 +137,18 @@ add_executable(software_discord_rpc
 )
 
 target_link_libraries(software_discord_rpc PRIVATE rpc_core)
+
+if (WIN32)
+  add_custom_command(TARGET software_discord_rpc POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:software_discord_rpc>/res"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/discord_rpc_transparent.png"
+            "$<TARGET_FILE_DIR:software_discord_rpc>/res/discord_rpc_transparent.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/discord_rpc.png"
+            "$<TARGET_FILE_DIR:software_discord_rpc>/res/discord_rpc.png"
+  )
+endif()
 
 if (SOFTWARE_RPC_ENABLE_LTO)
   set_property(TARGET rpc_core PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)

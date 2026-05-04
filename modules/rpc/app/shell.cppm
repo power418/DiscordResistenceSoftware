@@ -17,6 +17,7 @@ module;
 #    define NOMINMAX
 #  endif
 #  include <windows.h>
+#  include <rpc/platform/icon.hpp>
 #elif defined(__linux__)
 #  include <csignal>
 #  if defined(SOFTWARE_RPC_HAS_APPINDICATOR)
@@ -57,8 +58,8 @@ constexpr wchar_t kWindowClassName[] = L"SoftwareDiscordRpcAppWindow";
 constexpr UINT_PTR kSplashTimer = 1001;
 constexpr UINT_PTR kPollTimer = 1002;
 constexpr UINT kTrayIconId = 1;
-constexpr WORD kInfoIconResource = 32516;
 constexpr WORD kArrowCursorResource = 32512;
+constexpr WORD kDefaultAppIconResource = 32512;
 constexpr UINT kTraySelectMessage = 0x0400;
 constexpr UINT kTrayKeySelectMessage = 0x0401;
 
@@ -103,8 +104,15 @@ public:
         taskbar_created_message_(RegisterWindowMessageW(L"TaskbarCreated")),
         orchestrator_(options.poll_interval) {}
 
+  ~WindowsAppShell() {
+    if (app_icon_owned_ && app_icon_) {
+      DestroyIcon(app_icon_);
+    }
+  }
+
   int run() {
     rpc::log::init();
+    ensure_app_icon();
 
     if (!rpc::platform::init_tray_platform()) {
       rpc::log::warn("Common controls init failed: {}", rpc::platform::last_tray_error());
@@ -131,22 +139,37 @@ public:
 
 private:
   AppShellOptions options_;
-  HINSTANCE instance_{};
-  HWND hwnd_{};
+  HINSTANCE instance_{}; 
+  HWND hwnd_{}; 
   UINT taskbar_created_message_{};
   bool tray_added_ = false;
+  HICON app_icon_ = nullptr;
+  bool app_icon_owned_ = false;
   rpc::core::Orchestrator orchestrator_;
+
+  void ensure_app_icon() {
+    if (app_icon_) {
+      return;
+    }
+
+    app_icon_ = rpc::platform::load_app_icon();
+    app_icon_owned_ = (app_icon_ != nullptr);
+    if (!app_icon_) {
+      app_icon_ = LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
+      rpc::log::warn("App icon asset not found; using default application icon");
+    }
+  }
 
   bool register_window_class() const {
     WNDCLASSEXW window_class{};
     window_class.cbSize = sizeof(window_class);
     window_class.lpfnWndProc = &WindowsAppShell::window_proc;
     window_class.hInstance = instance_;
-    window_class.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(kInfoIconResource));
+    window_class.hIcon = app_icon_ ? app_icon_ : LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
     window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(kArrowCursorResource));
     window_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     window_class.lpszClassName = kWindowClassName;
-    window_class.hIconSm = LoadIconW(nullptr, MAKEINTRESOURCEW(kInfoIconResource));
+    window_class.hIconSm = window_class.hIcon;
 
     return RegisterClassExW(&window_class) != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
   }
@@ -175,6 +198,7 @@ private:
       return false;
     }
 
+    apply_window_icon();
     add_tray_icon();
 
     if (options_.show_splash_on_start) {
@@ -217,6 +241,7 @@ private:
     const rpc::platform::TrayConfig config{
       .window_handle = hwnd_,
       .icon_id = kTrayIconId,
+      .icon_handle = app_icon_,
       .tooltip = L"software_discord_rpc is running",
     };
 
@@ -249,6 +274,15 @@ private:
 
   void show_context_menu() {
     rpc::platform::show_tray_context_menu(hwnd_);
+  }
+
+  void apply_window_icon() const {
+    if (!app_icon_ || !hwnd_) {
+      return;
+    }
+
+    SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(app_icon_));
+    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(app_icon_));
   }
 
   void paint() const {

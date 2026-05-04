@@ -5,6 +5,7 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 
 #include <nlohmann/json.hpp>
 
@@ -19,6 +20,23 @@ struct Config {
   std::uint32_t debounce_ms = 1500;
   std::string log_level = "info";
 };
+
+namespace config {
+
+namespace fonts {
+extern const std::string_view heading_family;
+extern const std::string_view body_family;
+extern const std::string_view icon_family;
+} // namespace fonts
+
+namespace url {
+extern const std::string_view google_fonts_preconnect;
+extern const std::string_view google_fonts_static_preconnect;
+extern const std::string_view google_fonts_link;
+extern const std::string_view font_awesome_link;
+} // namespace url
+
+} // namespace config
 
 [[nodiscard]] inline Config default_config() { return {}; }
 
@@ -56,4 +74,3 @@ struct Config {
 }
 
 } // namespace rpc
-

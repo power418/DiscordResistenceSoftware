@@ -12,6 +12,7 @@ inline constexpr std::uint32_t kTrayMenuExit = 2003;
 struct TrayConfig {
   void* window_handle = nullptr;
   std::uint32_t icon_id = 1;
+  void* icon_handle = nullptr;
   const wchar_t* tooltip = L"software_discord_rpc is running";
 };
 
