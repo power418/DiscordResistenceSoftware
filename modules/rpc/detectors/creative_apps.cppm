@@ -168,6 +168,43 @@ match_creative_app(const rpc::ActiveWindowInfo& snapshot) {
   return std::nullopt;
 }
 
+// ---------------------------------------------------------------------------
+// Title parsing — extract project/file name from window title
+// ---------------------------------------------------------------------------
+//
+// Most creative apps use the pattern:   "<project> - <app name>"
+//   "Untitled - Ableton Live 12 Suite"
+//   "My Song.flp - FL Studio 2024"
+//   "logo.psd @ 100% (RGB/8) - Adobe Photoshop"
+//   "drawing.kra - Krita"
+//
+// We extract the part before the last " - " as the project/document name.
+
+[[nodiscard]] inline std::string extract_project_name(std::string_view title,
+                                                       std::string_view app_display_name) {
+  if (title.empty()) return {};
+
+  // Find the last " - " separator
+  const auto sep = title.rfind(" - ");
+  if (sep == std::string_view::npos || sep == 0) {
+    return {};  // No separator or nothing before it
+  }
+
+  std::string project(title.substr(0, sep));
+
+  // Trim trailing whitespace
+  while (!project.empty() && (project.back() == ' ' || project.back() == '\t')) {
+    project.pop_back();
+  }
+
+  // Don't return the project name if it's just the app name again
+  if (lower_copy(project) == lower_copy(app_display_name)) {
+    return {};
+  }
+
+  return project;
+}
+
 [[nodiscard]] inline std::optional<rpc::ActivityPayload>
 detect_creative_activity(const rpc::ActiveWindowInfo& snapshot) {
   const auto profile = match_creative_app(snapshot);
@@ -176,9 +213,18 @@ detect_creative_activity(const rpc::ActiveWindowInfo& snapshot) {
   }
 
   rpc::ActivityPayload activity{};
-  activity.details = std::string(profile->details);
   activity.state = std::string(profile->state);
   activity.start_timestamp_unix = snapshot.start_timestamp_unix;
+
+  // Try to extract the project/file name from the window title
+  std::string project = extract_project_name(snapshot.title, profile->display_name);
+  if (!project.empty()) {
+    activity.details = project;
+  } else {
+    // Fallback to the generic description
+    activity.details = std::string(profile->details);
+  }
+
   return activity;
 }
 

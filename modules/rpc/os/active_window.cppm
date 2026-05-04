@@ -31,6 +31,7 @@ struct ActiveWindowInfo {
   std::string title;
   std::string process_name;
   std::string exe_path;
+  std::uintptr_t window_handle = 0;
   std::uint64_t start_timestamp_unix = 0;
 };
 
@@ -231,6 +232,7 @@ struct ActiveWindowInfo {
     return info;
   }
 
+  info.window_handle = reinterpret_cast<std::uintptr_t>(hwnd);
   info.title = wide_to_utf8(get_window_title(hwnd));
 
   DWORD pid = 0;

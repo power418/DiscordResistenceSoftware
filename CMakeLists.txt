@@ -30,11 +30,14 @@ target_sources(rpc_core
       modules/rpc/core/orchestrator.cppm
       modules/rpc/detectors/creative_apps.cppm
       modules/rpc/discord/ipc_client.cppm
+      modules/rpc/net/imgur_uploader.cppm
       modules/rpc/os/active_window.cppm
+      modules/rpc/os/icon_cache.cppm
+      modules/rpc/os/icon_extractor.cppm
       modules/rpc/utils/logger.cppm
     FILE_SET HEADERS FILES
       include/rpc/activity.hpp
-      include/platform/tray.hpp
+      include/rpc/platform/tray.hpp
 )
 
 target_include_directories(rpc_core
@@ -47,7 +50,7 @@ target_compile_features(rpc_core PUBLIC cxx_std_20)
 software_rpc_add_dependencies(rpc_core)
 
 if (WIN32)
-  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32)
+  target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 winhttp crypt32)
 endif()
 
 if (UNIX AND NOT APPLE)

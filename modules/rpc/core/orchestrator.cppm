@@ -12,6 +12,7 @@ import rpc.core;
 import rpc.detectors.creative_apps;
 import rpc.discord.ipc_client;
 import rpc.os.active_window;
+import rpc.os.icon_cache;
 import rpc.utils.logger;
 
 export namespace rpc::core {
@@ -26,12 +27,42 @@ public:
       rpc::log::info(".env synced: {}", rpc::dotenv_path().string());
     }
 
+    // Log active window changes (for debugging)
     const auto snapshot = rpc::query_active_window();
     if (!snapshot.process_name.empty() && snapshot.process_name != last_seen_process_) {
       last_seen_process_ = snapshot.process_name;
-      rpc::log::info("Active window: {}", snapshot.process_name);
+      rpc::log::debug("Active window: {}", snapshot.process_name);
     }
-    publish_activity(snapshot);
+
+    // ── Sticky RPC logic ──
+    // 1. If active window is a creative app → adopt it (update/switch)
+    // 2. If active window is NOT creative → keep existing RPC as long as its process lives
+    // 3. Only clear when the sticky process actually exits
+
+    const auto detected = rpc::detectors::detect_creative_activity(snapshot);
+
+    if (detected.has_value()) {
+      // Active window IS a creative app → adopt or keep it
+      adopt_creative_app(snapshot, detected.value());
+      return;
+    }
+
+    // Active window is NOT a creative app — keep sticky RPC if process is alive
+    if (!sticky_process_.empty()) {
+      if (rpc::is_process_running(sticky_process_)) {
+        // Process still alive → RPC stays, do nothing
+        ensure_activity_sent();
+        return;
+      }
+
+      // Sticky process has exited → clear RPC
+      rpc::log::info("{} has exited, clearing Discord activity", sticky_process_);
+      clear_activity();
+      sticky_process_.clear();
+      sticky_exe_path_.clear();
+      sticky_activity_ = {};
+      session_start_ = 0;
+    }
   }
 
   void tick_once() const {
@@ -42,19 +73,116 @@ public:
 private:
   std::chrono::milliseconds poll_interval_;
   mutable rpc::discord::IpcClient discord_;
-  mutable std::string last_activity_key_;
-  mutable std::string last_seen_process_;
-  mutable std::string last_focus_log_key_;
+  mutable rpc::IconCache icon_cache_;
+
+  // Sticky state — the creative app whose RPC stays active
+  mutable std::string sticky_process_;          // e.g. "FL64.exe"
+  mutable std::string sticky_exe_path_;         // full path for icon extraction
+  mutable rpc::ActivityPayload sticky_activity_;
   mutable std::uint64_t session_start_ = 0;
-  mutable std::string last_creative_app_key_;               // tracks which creative app session is active
-  mutable std::chrono::steady_clock::time_point last_creative_seen_{}; // when we last saw a creative app
-  mutable bool activity_is_set_ = false;                     // whether Discord currently shows an activity
+
+  // Misc state
+  mutable std::string last_seen_process_;
+  mutable std::string last_activity_key_;
+  mutable bool activity_is_set_ = false;
   mutable bool warned_missing_client_id_ = false;
   mutable bool warned_connect_failure_ = false;
   mutable std::chrono::steady_clock::time_point next_connect_attempt_{};
 
-  // How long we tolerate being away from a creative app before resetting the timer
-  static constexpr auto kSessionTimeout = std::chrono::seconds(30);
+  // ── Core logic ──
+
+  void adopt_creative_app(const rpc::ActiveWindowInfo& snapshot,
+                          const rpc::ActivityPayload& detected) const {
+    const std::string activity_key = detected.details + "\n" + detected.state;
+
+    // Detect changes
+    const bool is_different_app = (sticky_process_ != snapshot.process_name);
+    const bool is_title_changed = (last_activity_key_ != activity_key);
+
+    if (is_different_app) {
+      // Switching to a different creative app → new session
+      rpc::log::info("Creative app detected: {} → {} / {}",
+                     snapshot.process_name, detected.details, detected.state);
+      sticky_process_ = snapshot.process_name;
+      sticky_exe_path_ = snapshot.exe_path;
+      session_start_ = rpc::unix_timestamp_seconds_now();
+    } else if (is_title_changed && session_start_ == 0) {
+      // Same app but no session yet
+      session_start_ = rpc::unix_timestamp_seconds_now();
+    }
+    // Otherwise: same app, title may have changed → keep session_start_ as-is
+
+    if (is_title_changed) {
+      rpc::log::info("RPC details: {} ({})", detected.details, detected.state);
+    }
+
+    // Build the activity payload
+    sticky_activity_ = detected;
+    sticky_activity_.start_timestamp_unix = session_start_;
+
+    // Auto-detect icon from exe
+    std::string icon_url = icon_cache_.resolve_icon_url(sticky_exe_path_);
+    if (!icon_url.empty()) {
+      sticky_activity_.large_image = icon_url;
+      sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
+    } else {
+      sticky_activity_.large_image = rpc::env_or("DISCORD_LARGE_IMAGE", "");
+      sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
+    }
+
+    // Send to Discord when something changed
+    const bool need_update = is_different_app || is_title_changed
+                          || !activity_is_set_ || !discord_.connected();
+    if (need_update) {
+      send_activity(activity_key);
+    }
+  }
+
+  void ensure_activity_sent() const {
+    // Re-send sticky activity if Discord reconnected or activity was lost
+    if (activity_is_set_ && discord_.connected()) {
+      return;
+    }
+
+    if (sticky_activity_.details.empty()) {
+      return;
+    }
+
+    const std::string key = sticky_activity_.details + "\n" + sticky_activity_.state;
+    send_activity(key);
+  }
+
+  void send_activity(const std::string& activity_key) const {
+    if (!ensure_discord_connected()) {
+      return;
+    }
+
+    if (discord_.set_activity(sticky_activity_)) {
+      last_activity_key_ = activity_key;
+      activity_is_set_ = true;
+      rpc::log::info("Discord RPC active: {} / {} (session since {})",
+                     sticky_activity_.details, sticky_activity_.state, session_start_);
+      return;
+    }
+
+    rpc::log::warn("Discord activity update failed: {}", discord_.last_error());
+    next_connect_attempt_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  }
+
+  void clear_activity() const {
+    if (!activity_is_set_) {
+      return;
+    }
+
+    if (ensure_discord_connected() && discord_.clear_activity()) {
+      rpc::log::info("Discord RPC cleared");
+    }
+
+    last_activity_key_.clear();
+    activity_is_set_ = false;
+  }
+
+  // ── Discord connection ──
 
   [[nodiscard]] bool ensure_discord_connected() const {
     if (discord_.connected()) {
@@ -89,122 +217,6 @@ private:
     warned_connect_failure_ = false;
     rpc::log::info("Connected to Discord IPC");
     return true;
-  }
-
-  void publish_activity(const rpc::ActiveWindowInfo& snapshot) const {
-    const auto detected_activity = rpc::detectors::detect_creative_activity(snapshot);
-    if (!detected_activity.has_value()) {
-      log_creative_focus_miss(snapshot);
-      clear_activity_if_needed();
-      return;
-    }
-
-    rpc::ActivityPayload activity = detected_activity.value();
-    log_creative_focus_match(snapshot, activity);
-
-    const std::string activity_key = activity.details + "\n" + activity.state;
-    const auto now = std::chrono::steady_clock::now();
-
-    // Update the "last time we saw a creative app" timestamp
-    last_creative_seen_ = now;
-
-    // Decide whether to start a fresh session or continue the existing one
-    if (activity_key != last_creative_app_key_) {
-      // Different creative app (e.g. FL Studio -> Krita): start new session
-      session_start_ = rpc::unix_timestamp_seconds_now();
-      last_creative_app_key_ = activity_key;
-    } else if (session_start_ == 0) {
-      // Same creative app but session was expired: start new session
-      session_start_ = rpc::unix_timestamp_seconds_now();
-    }
-    // Otherwise: same creative app, session still valid -> keep session_start_ as-is
-
-    activity.start_timestamp_unix = session_start_;
-
-    // Set the large image asset from .env (upload it on Discord Developer Portal first)
-    activity.large_image = rpc::env_or("DISCORD_LARGE_IMAGE", "");
-    activity.large_text = rpc::env_or("DISCORD_LARGE_TEXT", activity.state);
-
-    // Always re-send the activity when coming back from a non-creative app,
-    // because we cleared it when we left. Also re-send if discord reconnected.
-    const bool need_update = !activity_is_set_
-                          || activity_key != last_activity_key_
-                          || !discord_.connected();
-
-    if (!need_update) {
-      return;
-    }
-
-    if (!ensure_discord_connected()) {
-      return;
-    }
-
-    if (discord_.set_activity(activity)) {
-      last_activity_key_ = activity_key;
-      activity_is_set_ = true;
-      rpc::log::info("Discord activity updated: {} / {} (elapsed since {})",
-                     activity.details, activity.state, session_start_);
-      return;
-    }
-
-    rpc::log::warn("Discord activity update failed: {}", discord_.last_error());
-    next_connect_attempt_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  }
-
-  void clear_activity_if_needed() const {
-    // Check if the session has timed out (away from creative app for too long)
-    const auto now = std::chrono::steady_clock::now();
-    if (session_start_ != 0
-        && last_creative_seen_ != std::chrono::steady_clock::time_point{}
-        && (now - last_creative_seen_) > kSessionTimeout) {
-      // Session expired — reset so next creative focus starts a fresh timer
-      session_start_ = 0;
-      last_creative_app_key_.clear();
-      rpc::log::info("Creative session expired after {}s away",
-                     std::chrono::duration_cast<std::chrono::seconds>(now - last_creative_seen_).count());
-    }
-
-    if (!activity_is_set_) {
-      return;
-    }
-
-    if (!ensure_discord_connected()) {
-      return;
-    }
-
-    if (discord_.clear_activity()) {
-      rpc::log::info("Discord activity cleared; active app is outside creative focus");
-      last_activity_key_.clear();
-      activity_is_set_ = false;
-      // NOTE: we do NOT reset session_start_ here — it persists for quick returns
-      return;
-    }
-
-    rpc::log::warn("Discord activity clear failed: {}", discord_.last_error());
-    next_connect_attempt_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  }
-
-  void log_creative_focus_miss(const rpc::ActiveWindowInfo& snapshot) const {
-    const std::string process_name = snapshot.process_name.empty() ? "unknown" : snapshot.process_name;
-    const std::string log_key = "miss\n" + process_name;
-    if (log_key == last_focus_log_key_) {
-      return;
-    }
-
-    last_focus_log_key_ = log_key;
-    rpc::log::info("Creative focus ignored: {} is not a tracked creative app", process_name);
-  }
-
-  void log_creative_focus_match(const rpc::ActiveWindowInfo& snapshot,
-                                const rpc::ActivityPayload& activity) const {
-    const std::string process_name = snapshot.process_name.empty() ? "unknown" : snapshot.process_name;
-    const std::string log_key = "match\n" + process_name + "\n" + activity.details + "\n" + activity.state;
-    if (log_key == last_focus_log_key_) {
-      return;
-    }
-
-    last_focus_log_key_ = log_key;
-    rpc::log::info("Creative focus matched: {} -> {} / {}", process_name, activity.details, activity.state);
   }
 };
 

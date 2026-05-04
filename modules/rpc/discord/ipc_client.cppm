@@ -108,6 +108,12 @@ public:
       if (!activity.large_text.empty()) {
         assets["large_text"] = activity.large_text;
       }
+      if (!activity.small_image.empty()) {
+        assets["small_image"] = activity.small_image;
+      }
+      if (!activity.small_text.empty()) {
+        assets["small_text"] = activity.small_text;
+      }
       activity_json["assets"] = assets;
     }
 
