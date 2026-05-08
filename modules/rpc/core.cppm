@@ -8,33 +8,14 @@ module;
 #include <string>
 #include <string_view>
 
+#include <rpc/core/export.hpp>
+
 export module rpc.core;
 
 export namespace rpc {
 
-[[nodiscard]] inline std::string trim(std::string_view value) {
-  const auto first = value.find_first_not_of(" \t\r\n");
-  if (first == std::string_view::npos) {
-    return {};
-  }
-
-  const auto last = value.find_last_not_of(" \t\r\n");
-  return std::string(value.substr(first, last - first + 1));
-}
-
-[[nodiscard]] inline std::string unquote(std::string value) {
-  if (value.size() < 2) {
-    return value;
-  }
-
-  const char first = value.front();
-  const char last = value.back();
-  if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-    return value.substr(1, value.size() - 2);
-  }
-
-  return value;
-}
+[[nodiscard]] std::string trim(std::string_view value);
+[[nodiscard]] std::string unquote(std::string value);
 
 [[nodiscard]] inline std::optional<std::filesystem::path>
 find_dotenv_path(const std::filesystem::path& requested_path = ".env") {
@@ -87,48 +68,7 @@ inline bool& dotenv_has_loaded_once() {
 // .env loader — reads KEY=VALUE pairs from a .env file
 // ---------------------------------------------------------------------------
 
-inline bool load_dotenv(const std::filesystem::path& path = ".env") {
-  const auto resolved_path = find_dotenv_path(path);
-  if (!resolved_path.has_value()) {
-    return false;
-  }
-
-  std::ifstream file(*resolved_path);
-  if (!file.is_open()) {
-    return false;
-  }
-
-  std::string line;
-  while (std::getline(file, line)) {
-    const std::string clean_line = trim(line);
-    if (clean_line.empty() || clean_line[0] == '#') {
-      continue;
-    }
-
-    auto pos = clean_line.find('=');
-    if (pos == std::string::npos) {
-      continue;
-    }
-
-    std::string key = trim(std::string_view(clean_line).substr(0, pos));
-    std::string value = unquote(trim(std::string_view(clean_line).substr(pos + 1)));
-    if (key.empty()) {
-      continue;
-    }
-
-    #if defined(_WIN32)
-      _putenv_s(key.c_str(), value.c_str());
-    #else
-      setenv(key.c_str(), value.c_str(), 0);
-    #endif
-  }
-
-  loaded_dotenv_path() = *resolved_path;
-  std::error_code error;
-  loaded_dotenv_write_time() = std::filesystem::last_write_time(*resolved_path, error);
-  dotenv_has_loaded_once() = true;
-  return true;
-}
+RPC_CORE_API bool load_dotenv(const std::filesystem::path& path = ".env");
 
 inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
   if (!dotenv_has_loaded_once()) {

@@ -1,15 +1,17 @@
 #if defined(_WIN32)
 
 #include <rpc/platform/icon.hpp>
+#include <rpc/res/rpc_res.hpp>
 
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
-#include <string>
 #include <vector>
 
 #include <objbase.h>
 #include <wincodec.h>
+#include <shlwapi.h>
+
+#pragma comment(lib, "shlwapi.lib")
 
 namespace {
 
@@ -41,44 +43,15 @@ void release_com(T*& ptr) {
   }
 }
 
-[[nodiscard]] std::filesystem::path executable_directory() {
-  std::wstring buffer(MAX_PATH, L'\0');
-  while (true) {
-    const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-    if (length == 0) {
-      return {};
-    }
-
-    if (length < buffer.size() - 1) {
-      buffer.resize(length);
-      break;
-    }
-
-    buffer.resize(buffer.size() * 2);
+[[nodiscard]] HICON create_icon_from_memory(const unsigned char* data, size_t size) {
+  if (!data || size == 0) {
+    return nullptr;
   }
 
-  return std::filesystem::path(buffer).parent_path();
-}
-
-[[nodiscard]] std::filesystem::path app_icon_path() {
-  const auto base = executable_directory() / L"res";
-  const auto transparent = base / L"discord_rpc_transparent.png";
-  if (std::filesystem::exists(transparent)) {
-    return transparent;
-  }
-
-  const auto opaque = base / L"discord_rpc.png";
-  if (std::filesystem::exists(opaque)) {
-    return opaque;
-  }
-
-  return transparent;
-}
-
-[[nodiscard]] HICON create_icon_from_png(const std::filesystem::path& path) {
   ComApartment com_apartment{};
 
   IWICImagingFactory* factory = nullptr;
+  IStream* stream = nullptr;
   IWICBitmapDecoder* decoder = nullptr;
   IWICBitmapFrameDecode* frame = nullptr;
   IWICFormatConverter* converter = nullptr;
@@ -86,18 +59,26 @@ void release_com(T*& ptr) {
   HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_IWICImagingFactory,
                                 reinterpret_cast<void**>(&factory));
-  if (FAILED(hr)) {
-    return nullptr;
+  
+  if (SUCCEEDED(hr)) {
+    stream = SHCreateMemStream(data, static_cast<UINT>(size));
+    if (!stream) {
+      hr = E_OUTOFMEMORY;
+    }
   }
 
-  hr = factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
-                                         WICDecodeMetadataCacheOnLoad, &decoder);
+  if (SUCCEEDED(hr)) {
+    hr = factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder);
+  }
+
   if (SUCCEEDED(hr)) {
     hr = decoder->GetFrame(0, &frame);
   }
+
   if (SUCCEEDED(hr)) {
     hr = factory->CreateFormatConverter(&converter);
   }
+
   if (SUCCEEDED(hr)) {
     hr = converter->Initialize(frame, GUID_WICPixelFormat32bppPBGRA,
                                WICBitmapDitherTypeNone, nullptr, 0.0,
@@ -166,6 +147,7 @@ void release_com(T*& ptr) {
   release_com(converter);
   release_com(frame);
   release_com(decoder);
+  release_com(stream);
   release_com(factory);
 
   return icon;
@@ -176,12 +158,17 @@ void release_com(T*& ptr) {
 namespace rpc::platform {
 
 HICON load_app_icon() {
-  const std::filesystem::path path = app_icon_path();
-  if (path.empty()) {
+  size_t size = 0;
+  const unsigned char* data = rpc_res_get_logo_transparent(&size);
+  if (!data || size == 0) {
+    data = rpc_res_get_logo(&size);
+  }
+
+  if (!data || size == 0) {
     return nullptr;
   }
 
-  return create_icon_from_png(path);
+  return create_icon_from_memory(data, size);
 }
 
 } // namespace rpc::platform

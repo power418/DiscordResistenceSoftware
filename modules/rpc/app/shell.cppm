@@ -15,6 +15,7 @@ module;
 #include <rpc/platform/theme.hpp>
 #include <rpc/platform/settings_dialog.hpp>
 #include <rpc/config/win32.h>
+#include <rpc/core/export.hpp>
 
 #if defined(_WIN32)
 #  include <windows.h>
@@ -48,7 +49,7 @@ struct AppShellOptions {
   bool enable_tray = true;
 };
 
-int run(AppShellOptions options = {});
+RPC_CORE_API int run(AppShellOptions options = {});
 
 } // namespace rpc::app
 

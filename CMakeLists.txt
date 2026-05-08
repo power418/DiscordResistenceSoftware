@@ -10,12 +10,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
 include(cmake/Dependencies.cmake)
 
 option(SOFTWARE_RPC_ENABLE_LTO "Enable link-time optimization (Release-like builds)" ON)
 option(SOFTWARE_RPC_ENABLE_NATIVE_OPT "Enable -march=native (GCC/Clang only)" OFF)
 
-add_library(rpc_core)
+add_library(rpc_res SHARED
+  src/res/rpc_res.cpp
+  src/res/rpc_res_data.cpp
+)
+
+target_include_directories(rpc_res
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_definitions(rpc_res PRIVATE RPC_RES_EXPORTS)
+
+add_library(rpc_core SHARED)
+
+target_compile_definitions(rpc_core PRIVATE RPC_CORE_EXPORTS)
 
 target_sources(rpc_core
   PRIVATE
@@ -26,6 +42,7 @@ target_sources(rpc_core
     src/config/fonts.cpp
     src/config/win32.cpp
     src/config/url.cpp
+    src/config/dotenv.cpp
     src/stb_image.cpp
   PUBLIC
     FILE_SET CXX_MODULES FILES
@@ -75,6 +92,8 @@ software_rpc_add_dependencies(rpc_core)
 if (WIN32)
   target_link_libraries(rpc_core PRIVATE user32 shell32 gdi32 comctl32 ole32 windowscodecs winhttp crypt32 dwmapi windowsapp)
 endif()
+
+target_link_libraries(rpc_core PRIVATE rpc_res)
 
 if (UNIX AND NOT APPLE)
   find_package(X11 QUIET)
@@ -154,17 +173,11 @@ endif()
 
 target_link_libraries(software_discord_rpc PRIVATE rpc_core)
 
-if (WIN32)
-  add_custom_command(TARGET software_discord_rpc POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:software_discord_rpc>/res"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/discord_rpc_transparent.png"
-            "$<TARGET_FILE_DIR:software_discord_rpc>/res/discord_rpc_transparent.png"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/discord_rpc.png"
-            "$<TARGET_FILE_DIR:software_discord_rpc>/res/discord_rpc.png"
-  )
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  target_link_libraries(software_discord_rpc PRIVATE "$<$<CONFIG:Debug>:msvcprtd>$<$<NOT:$<CONFIG:Debug>>:msvcprt>")
 endif()
+
+# Resources are now embedded in rpc_res library
 
 if (SOFTWARE_RPC_ENABLE_LTO)
   set_property(TARGET rpc_core PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
