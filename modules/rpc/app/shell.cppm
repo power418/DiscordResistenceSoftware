@@ -150,6 +150,7 @@ private:
   UINT taskbar_created_message_{};
   bool tray_added_ = false;
   HICON app_icon_ = nullptr;
+  HICON taskbar_icon_ = nullptr;
   bool app_icon_owned_ = false;
   rpc::core::Orchestrator orchestrator_;
   rpc::Config config_;
@@ -165,6 +166,13 @@ private:
       app_icon_ = LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
       rpc::log::warn("App icon asset not found; using default application icon");
     }
+
+    // Load taskbar icon from executable resource (ID 1).
+    // This icon represents the app in the Taskbar and Start Menu.
+    taskbar_icon_ = LoadIconW(instance_, MAKEINTRESOURCEW(1));
+    if (!taskbar_icon_) {
+      taskbar_icon_ = app_icon_;
+    }
   }
 
   bool register_window_class() const {
@@ -172,11 +180,11 @@ private:
     window_class.cbSize = sizeof(window_class);
     window_class.lpfnWndProc = &WindowsAppShell::window_proc;
     window_class.hInstance = instance_;
-    window_class.hIcon = app_icon_ ? app_icon_ : LoadIconW(nullptr, MAKEINTRESOURCEW(kDefaultAppIconResource));
+    window_class.hIcon = taskbar_icon_ ? taskbar_icon_ : app_icon_;
     window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(kArrowCursorResource));
     window_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     window_class.lpszClassName = win::window_class_name.data();
-    window_class.hIconSm = window_class.hIcon;
+    window_class.hIconSm = app_icon_;
 
     return RegisterClassExW(&window_class) != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
   }
@@ -294,12 +302,19 @@ private:
   }
 
   void apply_window_icon() const {
-    if (!app_icon_ || !hwnd_) {
+    if (!hwnd_) {
       return;
     }
 
-    SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(app_icon_));
-    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(app_icon_));
+    // ICON_BIG is used for the taskbar (Alt+Tab, etc).
+    if (taskbar_icon_) {
+      SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(taskbar_icon_));
+    }
+
+    // ICON_SMALL is used for the window title bar.
+    if (app_icon_) {
+      SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(app_icon_));
+    }
   }
 
   void sync_window_theme() const {

@@ -1,7 +1,33 @@
-// Generated file. Do not edit.
+// rpc_res_data.cpp - Static Data Storage - Generated file. Do not edit.
+/* 
+ * ============================================================================================
+ * SOFTWARE DISCORD RPC - BINARY ASSET EMBEDDING (v1.0.0)
+ * ============================================================================================
+ * LECTURE BY: PROFESSOR ANTIGRAVITY
+ * SUBJECT: High-Performance Zero-Copy Static Resource Management
+ * 
+ * Mahasiswa sekalian, selamat datang di repositori data biner murni.
+ * File ini adalah hasil ekstraksi aset grafis (PNG) ke dalam bentuk array konstanta C++.
+ * 
+ * 1. PERSISTENCE: Data di-hardcode sebagai 'const unsigned char[]'.
+ * 2. EFFICIENCY: Disimpan dalam segmen '.rodata' (Read-Only) oleh linker.
+ * 3. ACCESS: Dikelola oleh rpc_res.dll via rpc_res.hpp untuk akses lintas-modul.
+ * 
+ * PERINGATAN: File ini sangat besar (~15MB). Jangan membuka file ini di editor teks 
+ * yang lambat jika Anda tidak ingin UI editor Anda membeku.
+ * ============================================================================================
+ */
+
 
 #include <rpc/res/rpc_res.hpp>
 
+/**
+ * @asset Master Logo (Default)
+ * @format Portable Network Graphics (PNG)
+ * @description Logo utama aplikasi Software Discord RPC. 
+ * Digunakan sebagai fallback utama jika aset transparan tidak tersedia atau 
+ * saat dibutuhkan tampilan dengan latar belakang solid.
+ */
 extern "C" const unsigned char rpc_logo_png[] = {
 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 
 0x00, 0x00, 0x04, 0xe6, 0x00, 0x00, 0x04, 0xe6, 0x08, 0x02, 0x00, 0x00, 0x00, 0x0a, 0x9e, 0x39, 
@@ -64311,13 +64337,12 @@ extern "C" const unsigned char rpc_logo_png[] = {
 0x01, 0xfa, 0x14, 0x8b, 0xd2, 0x82, 0xc0, 0xa4, 0x49, 0x78, 0xef, 0xc8, 0x0b, 0xad, 0xa3, 0x01, 
 0x3a, 0x79, 0xe0, 0xff, 0x01, 0xe9, 0x0b, 0xc6, 0x65, 0x17, 0x1b, 0xf6, 0xd6, 0x00, 0x00, 0x00, 
 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82, };
+// Ukuran total buffer rpc_logo_png dalam satuan Byte
 extern "C" const unsigned int rpc_logo_png_size = 1028921;
 
 /**
 
 */
-
-
 extern "C" const unsigned char rpc_logo_transparent_png[] = {
 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 
 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x08, 0x06, 0x00, 0x00, 0x00, 0x7f, 0x1d, 0x2b, 
@@ -153649,5 +153674,6 @@ extern "C" const unsigned char rpc_logo_transparent_png[] = {
 0x84, 0x59, 0xc7, 0xef, 0xab, 0xd1, 0xbb, 0x2f, 0xb8, 0x2f, 0xcf, 0x68, 0x3b, 0x23, 0x95, 0xfe, 
 0x0f, 0x7d, 0xff, 0x93, 0xf4, 0x56, 0xa9, 0xa9, 0x70, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 
 0x44, 0xae, 0x42, 0x60, 0x82, };
+// Ukuran total buffer rpc_logo_transparent_png dalam satuan Byte
 extern "C" const unsigned int rpc_logo_transparent_png_size = 1429269;
 

@@ -1,0 +1,4 @@
+#include <windows.h>
+
+// ID 1 is the default icon used by Explorer and the Start Menu.
+1 ICON "../../res/discord_rpc.ico"
