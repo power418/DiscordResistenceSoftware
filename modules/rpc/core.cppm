@@ -9,6 +9,7 @@ module;
 #include <string_view>
 
 #include <rpc/core/export.hpp>
+#include <rpc/config/app.h>
 
 export module rpc.core;
 
@@ -131,11 +132,11 @@ inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
 // ---------------------------------------------------------------------------
 
 [[nodiscard]] inline std::string client_id() {
-  return env_or("DISCORD_CLIENT_ID", "");
+  return env_or("DISCORD_CLIENT_ID", rpc::config::kDefaultDiscordClientId);
 }
 
 [[nodiscard]] inline std::string app_name() {
-  return env_or("APP_NAME", "software_discord_rpc");
+  return env_or("APP_NAME", rpc::config::kDefaultAppName);
 }
 
 // ---------------------------------------------------------------------------

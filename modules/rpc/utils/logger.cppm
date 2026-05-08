@@ -2,11 +2,14 @@ module;
 
 #include <concepts>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
 #include <source_location>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
@@ -88,7 +91,25 @@ inline void init(std::string_view logger_name = "software_discord_rpc",
     return;
   }
 
-  auto logger = spdlog::stdout_color_mt(std::string(logger_name));
+  std::vector<spdlog::sink_ptr> sinks;
+  sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+
+  try {
+    const char* temp_dir = std::getenv("TEMP");
+    if (temp_dir == nullptr || temp_dir[0] == '\0') {
+      temp_dir = std::getenv("TMP");
+    }
+
+    std::filesystem::path log_path = (temp_dir && temp_dir[0] != '\0')
+      ? (std::filesystem::path(temp_dir) / "software_discord_rpc.log")
+      : std::filesystem::path("software_discord_rpc.log");
+
+    sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_path.string(), true));
+  } catch (...) {
+  }
+
+  auto logger = std::make_shared<spdlog::logger>(std::string(logger_name), sinks.begin(), sinks.end());
+  spdlog::register_logger(logger);
   spdlog::set_default_logger(logger);
   spdlog::set_level(to_spdlog(level));
   spdlog::set_pattern("[%H:%M:%S] [%^%l%$] %v");

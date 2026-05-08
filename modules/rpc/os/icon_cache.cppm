@@ -19,6 +19,7 @@ module;
 export module rpc.os.icon_cache;
 
 import rpc.core;
+import rpc.config;
 import rpc.os.icon_extractor;
 import rpc.net.imgur_uploader;
 import rpc.utils.logger;
@@ -73,7 +74,7 @@ public:
     }
 
     // 3. Check whether a direct image URL can be uploaded
-    const std::string imgur_client_id = rpc::env_or("IMGUR_CLIENT_ID", "");
+    const std::string imgur_client_id = rpc::env_or("IMGUR_CLIENT_ID", rpc::config::kDefaultImgurClientId);
     static bool warned_anonymous_upload = false;
     if (imgur_client_id.empty() && !warned_anonymous_upload) {
       rpc::log::debug("IMGUR_CLIENT_ID not set; using anonymous upload fallback");

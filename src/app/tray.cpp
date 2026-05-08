@@ -151,11 +151,15 @@ void show_tray_context_menu(void* window_handle) {
     return;
   }
 
+  AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, win::app_name.data());
+  AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
   AppendMenuW(menu, MF_STRING, kTrayMenuShow, L"Show");
   AppendMenuW(menu, MF_STRING, kTrayMenuRecentActivity, L"Recent activity");
   AppendMenuW(menu, MF_STRING, kTrayMenuSettings, L"Settings");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, kTrayMenuExit, L"Exit");
+  SetMenuDefaultItem(menu, kTrayMenuShow, FALSE);
 
   SetForegroundWindow(hwnd);
   const UINT command = TrackPopupMenu(

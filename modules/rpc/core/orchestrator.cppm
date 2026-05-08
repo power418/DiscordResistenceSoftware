@@ -11,6 +11,7 @@ export module rpc.core.orchestrator;
 
 import rpc.activity;
 import rpc.core;
+import rpc.config;
 import rpc.detectors.creative_apps;
 import rpc.detectors.office_apps;
 import rpc.detectors.productive_apps;
@@ -78,8 +79,22 @@ public:
       return;
     }
 
+    if (sticky_process_.empty()) {
+      sticky_process_ = "__idle__";
+      sticky_exe_path_.clear();
+      session_start_ = rpc::unix_timestamp_seconds_now();
+
+      rpc::ActivityPayload idle_activity{};
+      idle_activity.details = rpc::app_name().empty() ? std::string("software_discord_rpc") : rpc::app_name();
+      idle_activity.state = snapshot.process_name.empty() ? std::string("Monitoring") : snapshot.process_name;
+      idle_activity.start_timestamp_unix = session_start_;
+      sticky_activity_ = idle_activity;
+      send_activity(idle_activity.details + "\n" + idle_activity.state);
+      return;
+    }
+
     // Active window is NOT a creative app — keep sticky RPC if process is alive
-    if (!sticky_process_.empty()) {
+    if (!sticky_process_.empty() && sticky_process_ != "__idle__") {
       if (rpc::is_process_running(sticky_process_)) {
         // Process still alive → RPC stays, do nothing
         ensure_activity_sent();
@@ -93,6 +108,13 @@ public:
       sticky_exe_path_.clear();
       sticky_activity_ = {};
       session_start_ = 0;
+      return;
+    }
+
+    // Still idle — keep existing idle activity without re-sending every tick
+    if (sticky_process_ == "__idle__") {
+      ensure_activity_sent();
+      return;
     }
   }
 
@@ -164,9 +186,10 @@ private:
 
     // Auto-detect icon from the active window first, then fall back to the exe.
     std::string icon_url = icon_cache_.resolve_icon_url(snapshot.window_handle, sticky_exe_path_);
-    const std::string fallback_large_image = rpc::env_or("DISCORD_LARGE_IMAGE", "");
+    const std::string fallback_large_image = rpc::env_or("DISCORD_LARGE_IMAGE", rpc::config::kDefaultDiscordLargeImage);
     sticky_activity_.large_image = icon_url.empty() ? fallback_large_image : icon_url;
-    sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", detected.state);
+    sticky_activity_.large_text = rpc::env_or("DISCORD_LARGE_TEXT", 
+                                             rpc::config::kDefaultDiscordLargeText.empty() ? detected.state : rpc::config::kDefaultDiscordLargeText);
 
     const bool is_large_image_changed = (sticky_activity_.large_image != last_large_image_);
 

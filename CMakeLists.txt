@@ -12,6 +12,9 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 include(cmake/Dependencies.cmake)
@@ -65,6 +68,7 @@ target_sources(rpc_core
       modules/rpc/os/icon_cache.cppm
       modules/rpc/os/icon_extractor.cppm
       modules/rpc/utils/logger.cppm
+      modules/rpc/utils/console.cppm
     FILE_SET HEADERS FILES
       include/rpc/activity.hpp
       include/rpc/config/fonts.h

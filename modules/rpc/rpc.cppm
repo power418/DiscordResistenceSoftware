@@ -14,3 +14,4 @@ export import rpc.os.active_window;
 export import rpc.os.icon_cache;
 export import rpc.os.icon_extractor;
 export import rpc.utils.logger;
+export import rpc.utils.console;

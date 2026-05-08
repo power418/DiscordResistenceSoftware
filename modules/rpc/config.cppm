@@ -8,6 +8,7 @@ module;
 #include <string_view>
 
 #include <nlohmann/json.hpp>
+#include <rpc/config/app.h>
 
 export module rpc.config;
 
@@ -27,6 +28,12 @@ struct Config {
 };
 
 namespace config {
+
+using ::rpc::config::kDefaultDiscordClientId;
+using ::rpc::config::kDefaultAppName;
+using ::rpc::config::kDefaultImgurClientId;
+using ::rpc::config::kDefaultDiscordLargeImage;
+using ::rpc::config::kDefaultDiscordLargeText;
 
 namespace fonts {
 extern const std::string_view heading_family;
