@@ -142,6 +142,12 @@ add_executable(software_discord_rpc
   src/main.cpp
 )
 
+if (WIN32)
+  set_target_properties(software_discord_rpc PROPERTIES
+    WIN32_EXECUTABLE "$<NOT:$<CONFIG:Debug>>"
+  )
+endif()
+
 target_link_libraries(software_discord_rpc PRIVATE rpc_core)
 
 if (WIN32)

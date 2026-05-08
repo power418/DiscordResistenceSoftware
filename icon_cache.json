@@ -5,6 +5,11 @@
       "next_retry_unix": 0,
       "url": "https://files.catbox.moe/324lzx.png"
     },
+    "c:/program files/adobe/adobe photoshop 2026/photoshop.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/v504v1.png"
+    },
     "c:/program files/blender foundation/blender 5.1/blender.exe": {
       "failure_count": 0,
       "next_retry_unix": 0,
@@ -24,6 +29,21 @@
       "failure_count": 0,
       "next_retry_unix": 0,
       "url": "https://files.catbox.moe/g78wib.png"
+    },
+    "c:/program files/unity hub/unity hub.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/bsh6kf.png"
+    },
+    "c:/program files/unity/hub/editor/6000.4.2f1/editor/unity.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/ru9vup.png"
+    },
+    "c:/programdata/ableton/live 12 suite/program/ableton live 12 suite.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/bbcl9s.png"
     },
     "c:/users/administrator/documents/godothub/engine/4.6.2-stable/godot.exe": {
       "failure_count": 0,
