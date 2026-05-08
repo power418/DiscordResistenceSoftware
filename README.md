@@ -1,23 +1,23 @@
 # PRD — Discord Rich Presence Multi-App
 
-## 1. Ringkasan Produk
+## 1. Product Summary
 
-Produk ini adalah aplikasi desktop/service yang menampilkan Discord Rich Presence berdasarkan aplikasi yang sedang digunakan user, seperti Okular, Ableton Live, FL Studio, Adobe apps, browser, editor, media player, dan aplikasi lain. Sistem harus scalable, mudah ditambah support aplikasi baru, dan stabil berjalan di background tanpa mengganggu workflow user.
+This product is a desktop application/service that displays Discord Rich Presence based on the applications the user is currently using, such as Okular, Ableton Live, FL Studio, Adobe apps, browsers, editors, media players, and more. The system must be scalable, easy to add support for new applications, and stable running in the background without interrupting the user's workflow.
 
-Tujuan utamanya bukan membuat integrasi satu-per-satu secara hardcoded, tetapi membangun platform RPC berbasis plugin/detector sehingga app baru bisa ditambahkan lewat konfigurasi atau module kecil.
+The main goal is not to create one-by-one hardcoded integrations, but to build an RPC platform based on plugins/detectors so that new apps can be added via configuration or small modules.
 
 ---
 
-## 2. Masalah yang Ingin Diselesaikan
+## 2. Problems to Solve
 
-User ingin Discord status otomatis menunjukkan aktivitas dari banyak aplikasi berbeda. Masalah yang muncul kalau dibuat secara sederhana:
+Users want their Discord status to automatically show activity from many different applications. Issues that arise if built simply:
 
-- Setiap aplikasi punya cara deteksi berbeda.
-- Nama window/process tidak selalu konsisten.
-- Beberapa aplikasi punya metadata yang bisa dibaca, sebagian tidak.
-- Discord RPC perlu update dengan rate-limit agar tidak spam.
-- Aplikasi harus tetap ringan walaupun memonitor banyak app.
-- Support aplikasi baru harus bisa ditambahkan tanpa rewrite core.
+- Each application has a different way of detection.
+- Window/process names are not always consistent.
+- Some applications have readable metadata, some do not.
+- Discord RPC needs to be updated with rate-limits to avoid spam.
+- The application must remain lightweight even while monitoring many apps.
+- Support for new applications should be addable without rewriting the core.
 
 ---
 
@@ -25,86 +25,86 @@ User ingin Discord status otomatis menunjukkan aktivitas dari banyak aplikasi be
 
 ### Primary User
 
-- Kreator musik yang memakai Ableton Live, FL Studio, Reaper, Logic, atau DAW lain.
-- Designer/editor yang memakai Adobe Photoshop, Illustrator, Premiere Pro, After Effects, Lightroom.
-- Developer, reader, dan power user yang memakai Okular, VS Code, browser, terminal, dan app produktivitas lain.
+- Music creators using Ableton Live, FL Studio, Reaper, Logic, or other DAWs.
+- Designers/editors using Adobe Photoshop, Illustrator, Premiere Pro, After Effects, Lightroom.
+- Developers, readers, and power users using Okular, VS Code, browsers, terminals, and other productivity apps.
 
 ### Secondary User
 
-- Komunitas Discord yang ingin presence lebih personal.
-- Developer plugin yang ingin menambah detector untuk aplikasi tertentu.
+- Discord communities wanting a more personal presence.
+- Plugin developers wanting to add detectors for specific applications.
 
 ---
 
 ## 4. Goals
 
-1. Menampilkan Discord Rich Presence sesuai aplikasi aktif.
-2. Mendukung banyak aplikasi dengan arsitektur plugin.
-3. Menyediakan fallback detection berdasarkan process/window title.
-4. Menyediakan detector lanjutan untuk aplikasi yang punya metadata lebih kaya.
-5. Bisa berjalan cross-platform minimal Windows dan Linux, dengan opsi macOS di fase berikutnya.
-6. Update RPC aman, tidak spam, dan tidak crash saat Discord belum terbuka.
-7. Bisa dikonfigurasi user tanpa harus coding.
+1. Display Discord Rich Presence corresponding to the active application.
+2. Support many applications with a plugin architecture.
+3. Provide fallback detection based on process/window title.
+4. Provide advanced detectors for applications with richer metadata.
+5. Cross-platform support for at least Windows and Linux, with macOS as a future option.
+6. Safe RPC updates (no spam) and no crashes if Discord is not open.
+7. User-configurable without needing to code.
 
 ---
 
 ## 5. Non-Goals
 
-- Tidak membaca file private secara agresif tanpa izin user.
-- Tidak memakai Discord user token atau selfbot.
-- Tidak mengirim data user ke server eksternal pada MVP.
-- Tidak menjamin metadata detail untuk semua aplikasi sejak awal.
-- Tidak membuat plugin resmi untuk semua aplikasi sekaligus.
+- Do not aggressively read private files without user permission.
+- Do not use Discord user tokens or selfbots.
+- Do not send user data to external servers in the MVP.
+- Do not guarantee detailed metadata for all applications from the start.
+- Do not create official plugins for all applications at once.
 
 ---
 
-## 6. Prinsip Produk
+## 6. Product Principles
 
-1. **Local-first** — semua deteksi berjalan lokal.
-2. **Plugin-first** — app support dibuat modular.
-3. **Privacy by default** — user bisa memilih apakah nama project/file boleh tampil.
-4. **Graceful degradation** — kalau metadata detail gagal, tetap tampilkan status sederhana.
-5. **Low resource usage** — polling harus hemat CPU/memori.
-6. **Extensible** — support app baru bisa lewat config atau plugin.
+1. **Local-first** — all detection runs locally.
+2. **Plugin-first** — app support is made modular.
+3. **Privacy by default** — users can choose if project/file names are shown.
+4. **Graceful degradation** — if detailed metadata fails, show a simple status.
+5. **Low resource usage** — polling must be CPU/memory efficient.
+6. **Extensible** — support for new apps via config or plugins.
 
 ---
 
 ## 7. Use Cases
 
-### UC-01 — User membuka Ableton Live
+### UC-01 — User opens Ableton Live
 
-Sistem mendeteksi Ableton sebagai active process, lalu mengirim presence:
+The system detects Ableton as the active process and sends presence:
 
 - State: Producing music
 - Details: Ableton Live
 - Large Image: ableton
-- Timestamp: sejak Ableton aktif
+- Timestamp: since Ableton became active
 
-Jika metadata project tersedia dan user mengizinkan:
+If project metadata is available and permitted by the user:
 
 - Details: Working on `Project Name`
 - State: Ableton Live
 
-### UC-02 — User membuka Okular
+### UC-02 — User opens Okular
 
-Sistem mendeteksi Okular dan membaca window title bila tersedia:
+The system detects Okular and reads the window title if available:
 
 - Details: Reading PDF
 - State: Okular
-- Optional: nama dokumen jika diizinkan user
+- Optional: document name if permitted by the user
 
-### UC-03 — User berpindah ke Photoshop
+### UC-03 — User switches to Photoshop
 
-Sistem mengganti Discord presence dari Ableton ke Photoshop setelah debounce beberapa detik agar tidak flicker.
+The system switches the Discord presence from Ableton to Photoshop after a few seconds of debounce to avoid flickering.
 
-### UC-04 — App tidak dikenal
+### UC-04 — Unknown App
 
-Jika user mengaktifkan generic mode:
+If the user enables generic mode:
 
 - Details: Working in `{App Name}`
 - State: Active
 
-Jika generic mode mati, presence dibersihkan atau tetap memakai app terakhir sesuai setting.
+If generic mode is off, the presence is cleared or kept as the last app according to settings.
 
 ---
 
@@ -112,56 +112,50 @@ Jika generic mode mati, presence dibersihkan atau tetap memakai app terakhir ses
 
 ### FR-01 — Discord RPC Connector
 
-Sistem harus bisa connect ke Discord desktop client melalui local IPC/RPC.
+The system must be able to connect to the Discord desktop client via local IPC/RPC.
 
-Kebutuhan:
-
-- Connect ketika app start.
-- Reconnect otomatis jika Discord ditutup/dibuka ulang.
-- Clear activity saat app exit.
-- Rate-limit update presence.
-- Queue update agar tidak ada race condition.
+Requirements:
+- Connect when the app starts.
+- Auto-reconnect if Discord is closed/reopened.
+- Clear activity on app exit.
+- Rate-limit presence updates.
+- Queue updates to avoid race conditions.
 
 Acceptance Criteria:
-
-- Saat Discord aktif, presence muncul maksimal beberapa detik setelah app target aktif.
-- Saat Discord mati, aplikasi tidak crash.
-- Saat Discord dibuka ulang, presence reconnect otomatis.
+- When Discord is active, presence appears within seconds after the target app becomes active.
+- When Discord is off, the application does not crash.
+- When Discord is reopened, presence reconnects automatically.
 
 ---
 
 ### FR-02 — Active App Detector
 
-Sistem harus mengetahui aplikasi/window yang sedang aktif.
+The system must know which application/window is currently active.
 
 Minimum metadata:
-
 - Process name
 - Window title
-- Executable path jika tersedia
+- Executable path if available
 - OS platform
-- Timestamp active start
+- Active start timestamp
 
 Platform strategy:
-
 - Windows: Win32 foreground window API.
-- Linux X11: xprop/wmctrl atau binding X11.
-- Linux Wayland: fallback terbatas; gunakan portal atau process/window heuristics jika tersedia.
-- macOS: Accessibility API di fase berikutnya.
+- Linux X11: xprop/wmctrl or X11 bindings.
+- Linux Wayland: limited fallback; use portals or process/window heuristics if available.
+- macOS: Accessibility API in a future phase.
 
 Acceptance Criteria:
-
-- Bisa mendeteksi minimal process aktif di Windows dan Linux.
-- Bisa debounce perubahan window agar status tidak berubah terlalu cepat.
+- Can detect at least the active process on Windows and Linux.
+- Can debounce window changes so status doesn't change too rapidly.
 
 ---
 
 ### FR-03 — Plugin/Detector System
 
-Setiap app support dibuat sebagai plugin dengan kontrak standar.
+Every app support is built as a plugin with a standard contract.
 
-Interface konseptual:
-
+Conceptual interface:
 ```ts
 interface AppDetector {
   id: string;
@@ -173,8 +167,7 @@ interface AppDetector {
 }
 ```
 
-Contoh plugin:
-
+Example plugins:
 - `okular.detector`
 - `ableton.detector`
 - `flstudio.detector`
@@ -183,19 +176,17 @@ Contoh plugin:
 - `generic-process.detector`
 
 Acceptance Criteria:
-
-- Menambah plugin baru tidak perlu mengubah RPC connector.
-- Plugin bisa di-enable/disable lewat config.
-- Jika plugin error, core tetap berjalan dan fallback ke generic detector.
+- Adding a new plugin doesn't require changing the RPC connector.
+- Plugins can be enabled/disabled via config.
+- If a plugin errors, the core remains running and falls back to a generic detector.
 
 ---
 
 ### FR-04 — Config System
 
-User bisa mengatur behavior tanpa coding.
+Users can adjust behavior without coding.
 
-Config minimum:
-
+Minimum config:
 ```json
 {
   "privacy": {
@@ -219,19 +210,17 @@ Config minimum:
 ```
 
 Acceptance Criteria:
-
-- Config bisa dibaca saat startup.
-- Config invalid tidak membuat app crash; gunakan default aman.
-- Setting privacy dihormati oleh semua detector.
+- Config is read at startup.
+- Invalid config doesn't crash the app; use safe defaults.
+- Privacy settings are respected by all detectors.
 
 ---
 
 ### FR-05 — Activity Mapping
 
-Sistem harus mengubah hasil deteksi app menjadi payload Discord Rich Presence.
+The system must transform detection results into a Discord Rich Presence payload.
 
-Field umum:
-
+Common fields:
 - `details`
 - `state`
 - `largeImageKey`
@@ -239,28 +228,25 @@ Field umum:
 - `smallImageKey`
 - `smallImageText`
 - `startTimestamp`
-- `buttons` opsional
+- `buttons` (optional)
 
 Rules:
-
-- Jangan update jika payload sama dengan sebelumnya.
-- Jangan tampilkan filename/project jika privacy setting melarang.
-- Gunakan asset image dari Discord Developer Portal sesuai `clientId`.
+- Do not update if the payload is identical to the previous one.
+- Do not show filename/project if privacy settings forbid it.
+- Use image assets from the Discord Developer Portal matching the `clientId`.
 
 Acceptance Criteria:
-
-- Payload valid dikirim ke Discord.
-- Duplicate payload tidak dikirim berulang.
-- Presence berubah saat active app berubah.
+- Valid payload is sent to Discord.
+- Duplicate payloads are not sent repeatedly.
+- Presence changes when the active app changes.
 
 ---
 
 ### FR-06 — App Registry
 
-Sistem memiliki registry untuk daftar aplikasi dan cara match-nya.
+The system has a registry for app lists and their matching methods.
 
-Contoh entry:
-
+Example entry:
 ```json
 {
   "id": "flstudio",
@@ -273,46 +259,40 @@ Contoh entry:
 ```
 
 Acceptance Criteria:
-
-- Registry bisa ditambah tanpa compile ulang untuk generic detector.
-- Plugin khusus bisa override registry generic.
+- Registry can be updated without recompiling for the generic detector.
+- Specific plugins can override the generic registry.
 
 ---
 
 ## 9. Non-Functional Requirements
 
 ### Performance
-
-- CPU idle target: rendah, idealnya di bawah 1–3% pada perangkat normal.
-- Polling active window: 1–3 detik atau event-driven jika OS mendukung.
-- Discord update interval: minimal 10–15 detik kecuali ada perubahan penting.
+- Target idle CPU: low, ideally below 1–3% on normal devices.
+- Active window polling: 1–3 seconds or event-driven if supported by the OS.
+- Discord update interval: minimum 10–15 seconds unless there's a major change.
 
 ### Reliability
-
 - Auto-reconnect Discord IPC.
-- Plugin isolation: error plugin tidak crash core.
-- Logging structured untuk debug.
+- Plugin isolation: plugin errors don't crash the core.
+- Structured logging for debugging.
 
 ### Security & Privacy
-
-- Tidak menggunakan Discord user token.
-- Tidak membaca isi dokumen/audio/project kecuali plugin memang membutuhkan dan user mengizinkan.
-- Semua data tetap lokal pada MVP.
-- File/project name default disembunyikan untuk aplikasi sensitif.
+- Do not use Discord user tokens.
+- Do not read document/audio/project contents unless a plugin specifically needs it and the user permits.
+- All data remains local in the MVP.
+- File/project names are hidden by default for sensitive applications.
 
 ### Maintainability
-
-- Core tidak tahu detail aplikasi spesifik.
-- App-specific logic berada di plugin.
-- Unit test untuk matcher dan mapper.
-- Integration test untuk Discord RPC connector dengan mock IPC.
+- The core does not know specific application details.
+- App-specific logic resides in plugins.
+- Unit tests for matchers and mappers.
+- Integration tests for the Discord RPC connector with mock IPC.
 
 ---
 
-## 10. Arsitektur Sistem
+## 10. System Architecture
 
 ### High-Level Architecture
-
 ```text
 +-------------------------+
 | Desktop Tray / CLI App  |
@@ -359,20 +339,17 @@ Acceptance Criteria:
 
 ---
 
-## 11. Komponen Teknis
+## 11. Technical Components
 
 ### 11.1 Core Orchestrator
-
-Tugas:
-
-- Menjalankan lifecycle app.
-- Menjadwalkan polling atau event subscription.
-- Menyimpan current state.
-- Membandingkan activity baru dengan activity lama.
-- Mengatur debounce dan rate-limit.
+Tasks:
+- Run app lifecycle.
+- Schedule polling or event subscriptions.
+- Store current state.
+- Compare new activity with old activity.
+- Handle debounce and rate-limiting.
 
 State machine:
-
 ```text
 STARTING -> DISCORD_CONNECTING -> READY -> DETECTING -> UPDATING_RPC
                              \-> DISCORD_UNAVAILABLE -> RETRYING
@@ -381,16 +358,13 @@ STARTING -> DISCORD_CONNECTING -> READY -> DETECTING -> UPDATING_RPC
 ---
 
 ### 11.2 OS Integration Layer
+Tasks:
+- Get active window.
+- Get process info.
+- Get window title.
+- Normalize data across OSs.
 
-Tugas:
-
-- Ambil active window.
-- Ambil process info.
-- Ambil window title.
-- Normalisasi data antar OS.
-
-Output standar:
-
+Standard output:
 ```ts
 interface ActiveWindowSnapshot {
   platform: "windows" | "linux" | "macos";
@@ -405,35 +379,29 @@ interface ActiveWindowSnapshot {
 ---
 
 ### 11.3 Detector Manager
+Tasks:
+- Load plugins from internal folders.
+- Sort plugins by priority.
+- Run `match()` for the active snapshot.
+- Run `extract()` on the matching detector.
+- Fallback to the generic detector.
 
-Tugas:
-
-- Load plugin dari folder internal.
-- Urutkan plugin berdasarkan priority.
-- Jalankan `match()` untuk active snapshot.
-- Jalankan `extract()` pada detector yang cocok.
-- Fallback ke generic detector.
-
-Priority contoh:
-
-1. App-specific plugin dengan metadata detail.
+Example priorities:
+1. App-specific plugin with detailed metadata.
 2. Registry-based detector.
 3. Generic process detector.
 
 ---
 
 ### 11.4 Discord RPC Adapter
+Tasks:
+- Connect to Discord local IPC.
+- Send `SET_ACTIVITY`.
+- Clear activity on shutdown.
+- Auto-reconnect.
+- Handle IPC errors.
 
-Tugas:
-
-- Connect ke Discord local IPC.
-- Kirim `SET_ACTIVITY`.
-- Clear activity saat shutdown.
-- Reconnect otomatis.
-- Handle error IPC.
-
-Payload internal:
-
+Internal payload:
 ```ts
 interface ActivityPayload {
   appId: string;
@@ -450,36 +418,31 @@ interface ActivityPayload {
 
 ---
 
-## 12. Pilihan Tech Stack
+## 12. Tech Stack Choices
 
-### Opsi Utama — C++ Native Desktop (Recommended sesuai requirement)
+### Main Option — C++ Native Desktop (Recommended per requirement)
+Since the target implementation uses C++ and runs as a desktop app/background service, the architecture will focus on the native layer.
 
-Karena target implementasi menggunakan C++ dan berjalan sebagai desktop app/background service, arsitektur akan difokuskan ke native layer.
+Components:
+- C++17/20 as the core language.
+- OS-specific APIs for active window detection.
+- Discord RPC via native IPC (pipe/socket) or a wrapper library.
+- Optional lightweight GUI (tray) using Qt / Win32 / GTK.
 
-Komponen:
+Pros:
+- Very high performance and low memory.
+- Full control over OS-level APIs.
+- Suitable for long-term background daemons/services.
+- No additional runtime needed (like Node.js).
 
-- C++17/20 sebagai core language.
-- OS-specific API untuk active window detection.
-- Discord RPC via native IPC (pipe/socket) atau wrapper library.
-- Optional lightweight GUI (tray) menggunakan Qt / Win32 / GTK.
-
-Kelebihan:
-
-- Performa sangat tinggi dan low memory.
-- Kontrol penuh terhadap OS-level API.
-- Cocok untuk background daemon/service jangka panjang.
-- Tidak butuh runtime tambahan (seperti Node.js).
-
-Kekurangan:
-
-- Development lebih kompleks.
-- Plugin system lebih sulit dibanding JS/TS.
-- Cross-platform handling lebih banyak effort.
+Cons:
+- More complex development.
+- Plugin system is harder than JS/TS.
+- More effort for cross-platform handling.
 
 ---
 
-### Struktur Arsitektur (C++)
-
+### Architecture Structure (C++)
 ```text
 src/
   core/
@@ -520,39 +483,32 @@ src/
 
 ---
 
-## 13. Library yang Dibutuhkan
+## 13. Required Libraries
 
 ### Core C++ Libraries
-
-- `nlohmann/json` → parsing config JSON
-- `spdlog` → logging cepat dan ringan
-- `fmt` → formatting string modern
-- `asio` atau `boost::asio` → async event loop (optional)
+- `nlohmann/json` → JSON config parsing
+- `spdlog` → fast and lightweight logging
+- `fmt` → modern string formatting
+- `asio` or `boost::asio` → async event loop (optional)
 - `filesystem` (std) → file handling
 
 ---
 
 ### Discord RPC
-
-Opsi:
-
+Options:
 1. **discord-rpc (official legacy)**
    - C-based library
-   - Mudah dipakai di C++
-
+   - Easy to use in C++
 2. **Custom IPC implementation (recommended advanced)**
-   - Direct komunikasi ke Discord IPC pipe (`\?\pipe\discord-ipc-0` di Windows)
-   - Lebih fleksibel dan future-proof
-
+   - Direct communication with Discord IPC pipe (`\?\pipe\discord-ipc-0` on Windows)
+   - More flexible and future-proof
 3. **Third-party C++ wrapper**
-   - Wrapper di atas discord-rpc atau IPC
+   - Wrapper around discord-rpc or IPC
 
 ---
 
 ### OS Integration
-
 #### Windows
-
 - Win32 API:
   - `GetForegroundWindow`
   - `GetWindowText`
@@ -561,59 +517,48 @@ Opsi:
   - `QueryFullProcessImageName`
 
 #### Linux (X11)
-
 - `Xlib` / `X11`
-- Tools fallback:
+- Fallback tools:
   - `xprop`
   - `wmctrl`
 
 #### Linux (Wayland)
-
-- Sangat terbatas → fallback ke process-based detection
+- Highly limited → fallback to process-based detection
 
 ---
 
 ### Desktop UI (Optional)
-
-- **Qt (recommended jika butuh UI)**
+- **Qt (recommended if UI is needed)**
   - Tray icon
   - Settings window
-
-- Alternatif:
+- Alternatives:
   - Win32 tray API (Windows only)
   - GTK (Linux)
 
 ---
 
 ### Build System
-
-- `CMake` (wajib)
-- `vcpkg` atau `conan` untuk dependency management
+- `CMake` (required)
+- `vcpkg` or `conan` for dependency management
 
 ---
 
 ### Testing
-
 - `GoogleTest`
 - `Catch2`
 
 ---
 
 ### Plugin System (C++)
+Two approaches:
+#### A. Static Plugins (Recommended MVP)
+- All detectors compiled into the binary
+- JSON registry for mapping
+- Simple and stable
 
-Ada 2 pendekatan:
-
-#### A. Static Plugin (Recommended MVP)
-
-- Semua detector di-compile dalam binary
-- Registry JSON untuk mapping
-- Simpel dan stabil
-
-#### B. Dynamic Plugin (Advanced)
-
+#### B. Dynamic Plugins (Advanced)
 - Load `.dll` / `.so`
 - Interface via abstract class
-
 ```cpp
 class AppDetector {
 public:
@@ -621,86 +566,58 @@ public:
     virtual ActivityPayload extract(const ActiveWindowSnapshot&) = 0;
 };
 ```
-
-- Lebih fleksibel tapi kompleks
+- More flexible but complex
 
 ---
 
-### Utilities Tambahan
-
-- `inih` atau JSON config loader ringan
-- `chrono` untuk timing
-- `thread` untuk scheduler/polling
+### Additional Utilities
+- `inih` or lightweight JSON config loader
+- `chrono` for timing
+- `thread` for scheduler/polling
 
 ---
 
 ## 14. App Support Strategy
 
 ### Level 1 — Generic Support
-
-Support berdasarkan process/window title.
-
-Cocok untuk:
-
-- Okular
-- Adobe apps
-- FL Studio
-- Ableton
-- VS Code
-- Browser
-- Terminal
-
-Output sederhana tapi stabil.
+Support based on process/window title.
+Suitable for:
+- Okular, Adobe apps, FL Studio, Ableton, VS Code, Browser, Terminal.
+Simple but stable output.
 
 ### Level 2 — Smart Window Title Parsing
-
-Support berdasarkan pola title.
-
-Contoh:
-
-- Okular: ambil nama PDF dari window title.
-- Photoshop: ambil nama file aktif dari title.
-- Ableton/FL Studio: ambil nama project jika muncul di title.
+Support based on title patterns.
+Examples:
+- Okular: get PDF name from window title.
+- Photoshop: get active filename from title.
+- Ableton/FL Studio: get project name if it appears in the title.
 
 ### Level 3 — Deep Integration
+Support through specific APIs/plugins if the application provides an API, scripting, or local state.
+Examples:
+- DAW plugin/bridge for Ableton/FL Studio for BPM, playing/paused, project name.
+- Adobe scripting/UXP/CEP for more detailed document metadata.
 
-Support melalui API/plugin khusus jika aplikasi menyediakan API, scripting, atau local state.
-
-Contoh:
-
-- DAW plugin/bridge untuk Ableton/FL Studio jika ingin BPM, playing/paused, project name.
-- Adobe scripting/UXP/CEP bila butuh metadata dokumen lebih detail.
-
-MVP cukup Level 1 + sebagian Level 2.
+MVP is sufficient with Level 1 + some Level 2.
 
 ---
 
 ## 15. MVP Scope
 
 ### In Scope
-
 - Windows + Linux X11 support.
 - Discord RPC connect/reconnect.
 - Active window detection.
-- Plugin manager sederhana.
-- Built-in detector untuk:
-  - Okular
-  - Ableton Live
-  - FL Studio
-  - Adobe Photoshop
-  - Adobe Illustrator
-  - Adobe Premiere Pro
-  - Adobe After Effects
-  - Generic app detector
-- Config JSON.
-- Privacy setting.
-- Tray icon minimal.
-- Logging file lokal.
+- Simple plugin manager.
+- Built-in detectors for: Okular, Ableton Live, FL Studio, Adobe Photoshop, Adobe Illustrator, Adobe Premiere Pro, Adobe After Effects, Generic app detector.
+- JSON Config.
+- Privacy settings.
+- Minimal tray icon.
+- Local log file.
 
 ### Out of Scope MVP
-
-- Deep DAW metadata seperti BPM/track/playing state.
-- Adobe UXP/CEP plugin.
+- Deep DAW metadata like BPM/track/playing state.
+- Adobe UXP/CEP plugins.
 - Cloud sync.
 - Plugin marketplace.
 - Mobile support.
@@ -710,183 +627,71 @@ MVP cukup Level 1 + sebagian Level 2.
 ## 16. Milestones
 
 ### M1 — Proof of Concept
-
 Deliverables:
-
-- Discord RPC berhasil tampil.
-- Active app detection berjalan di satu OS.
-- Hardcoded detector untuk 2 aplikasi.
+- Discord RPC successfully displayed.
+- Active app detection working on one OS.
+- Hardcoded detectors for 2 apps.
 
 ### M2 — MVP Architecture
-
 Deliverables:
-
 - Plugin interface.
 - Detector manager.
 - Config manager.
 - Activity mapper.
-- Built-in detector awal.
+- Initial built-in detectors.
 
 ### M3 — Desktop App
-
 Deliverables:
-
 - Tray app.
 - Autostart option.
 - Settings file.
-- Logs viewer sederhana.
+- Simple logs viewer.
 
 ### M4 — App Expansion
-
 Deliverables:
-
-- Support Okular, Ableton, FL Studio, Adobe suite.
+- Support for Okular, Ableton, FL Studio, Adobe suite.
 - Registry-based app definitions.
 - Privacy controls.
 
 ### M5 — Stabilization
-
 Deliverables:
-
 - Reconnect handling.
 - Rate-limit testing.
 - Packaging installer.
-- Documentation plugin authoring.
+- Plugin authoring documentation.
 
 ---
 
 ## 17. Success Metrics
-
-- RPC muncul dengan benar untuk minimal 8 aplikasi target.
-- App tetap berjalan 8 jam tanpa crash.
-- CPU idle rendah.
-- Discord reconnect berhasil setelah Discord restart.
-- Menambah app baru lewat registry membutuhkan kurang dari 10 menit.
-- 90% perubahan active app terdeteksi dalam 3–5 detik.
+- RPC appears correctly for at least 8 target applications.
+- App runs 8 hours without crashing.
+- Low idle CPU.
+- Discord reconnect succeeds after Discord restart.
+- Adding a new app via registry takes less than 10 minutes.
+- 90% of active app changes detected within 3–5 seconds.
 
 ---
 
-## 18. Risiko & Mitigasi
+## 18. Risks & Mitigations
 
-### Risiko: Wayland membatasi akses active window
+### Risk: Wayland limits access to active window
+Mitigation:
+- Focus MVP on Windows and Linux X11.
+- Provide manual fallback/app whitelist.
+- Document Wayland limitations.
 
-Mitigasi:
+### Risk: Discord RPC unstable during Discord restart
+Mitigation:
+- Implement exponential backoff reconnect loop.
+- Do not crash when IPC is unavailable.
 
-- Fokus MVP pada Windows dan Linux X11.
-- Sediakan fallback manual/app whitelist.
-- Dokumentasikan keterbatasan Wayland.
-
-### Risiko: Discord RPC unstable saat Discord restart
-
-Mitigasi:
-
-- Implement reconnect loop exponential backoff.
-- Jangan crash saat IPC unavailable.
-
-### Risiko: Privacy concern karena nama file tampil
-
-Mitigasi:
-
+### Risk: Privacy concerns due to filename display
+Mitigation:
 - Default `showFileName = false`.
-- Per-app privacy override.
-- Preview payload sebelum dikirim.
+- Per-app privacy overrides.
+- Preview payload before sending.
 
-### Risiko: Terlalu banyak plugin hardcoded
-
-Mitigasi:
-
-- Registry JSON untuk generic apps.
-- Plugin hanya untuk app yang butuh parsing khusus.
-
----
-
-## 19. Open Questions
-
-1. Platform prioritas pertama: Windows, Linux, atau dua-duanya?
-2. Apakah app harus punya UI penuh atau cukup tray + config file?
-3. Apakah nama file/project boleh tampil secara default?
-4. Apakah user butuh custom template per aplikasi?
-5. Apakah ingin support Discord Web/custom client via bridge seperti arRPC, atau cukup Discord Desktop official?
-
----
-
-## 20. Rekomendasi Implementasi Awal
-
-Mulai dari struktur project berikut:
-
-```text
-rpc-presence/
-  apps/
-    desktop/              # Tauri app
-  packages/
-    core/                 # orchestrator, state machine
-    discord-adapter/      # RPC connector
-    os-detector/          # active window snapshot
-    detectors/            # built-in plugins
-    config/               # schema + loader
-    registry/             # app definitions JSON
-  configs/
-    default.json
-  docs/
-    plugin-authoring.md
-```
-
-Prioritas coding:
-
-1. Buat Discord RPC adapter.
-2. Buat active window detector untuk OS utama.
-3. Buat activity mapper.
-4. Buat detector generic.
-5. Tambah detector khusus untuk Okular, Ableton, FL Studio, dan Adobe.
-6. Tambah tray + settings.
-7. Tambah testing dan packaging.
-
----
-
-## 21. Definition of Done MVP
-
-MVP dianggap selesai jika:
-
-- Aplikasi bisa dijalankan sebagai background/tray app.
-- Discord status berubah sesuai active app.
-- Minimal 8 app target dikenali.
-- Config privacy berfungsi.
-- App tidak crash saat Discord tidak berjalan.
-- Log error dapat dibaca untuk debugging.
-- Dokumentasi setup dan penambahan app baru tersedia.
-
----
-
-## Ketentuan Teknis (C++20 + Modules)
-
-Repo ini disiapkan untuk **C++20** dan **C++ Modules** (file `.cppm`).
-
-### Struktur Folder
-
-```text
-include/                # Header publik (non-module) .hpp
-modules/                # C++ module interface units .cppm (dipisah dari src/)
-src/                    # Entry point + implementasi .cpp/.cc non-module
-```
-
-### Aturan Modules vs Include
-
-- Internal codebase **utamakan `import`** untuk dependency antar-komponen.
-  - Contoh: `import rpc.core;`
-- `#include` tetap dipakai untuk:
-  - header standard / third-party
-  - header non-module di `include/` bila memang diperlukan
-- Untuk `.cppm`, jika perlu `#include`, taruh di **global module fragment**:
-  - pola: `module;` → `#include ...` → `export module ...;`
-
-### Build & Preset
-
-- Tooling minimal: **CMake >= 3.28** + **Ninja** + compiler C++20 yang mendukung modules.
-- Quick start (Windows/Clang):
-  - `cmake --preset clang-release`
-  - `cmake --build --preset clang-release`
-
-### Optimisasi
-
-- Default Release preset mengaktifkan LTO via option `SOFTWARE_RPC_ENABLE_LTO=ON`.
-- Optional native CPU optim (tidak portable): `-DSOFTWARE_RPC_ENABLE_NATIVE_OPT=ON` (GCC/Clang).
+### Risk: Too many hardcoded plugins
+Mitigation:
+- JSON Registry for generic apps.
+- Plugins only for apps needing special parsing.
