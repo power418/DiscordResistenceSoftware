@@ -139,6 +139,16 @@ inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
   return env_or("APP_NAME", rpc::config::kDefaultAppName);
 }
 
+[[nodiscard]] inline std::string app_key() {
+  return env_or("APP_KEY", rpc::config::kDefaultAppKey);
+}
+
+[[nodiscard]] inline std::string imgur_client_id() {
+  return env_or("IMGUR_CLIENT_ID", rpc::config::kDefaultImgurClientId);
+}
+
+
+
 // ---------------------------------------------------------------------------
 // Utility
 // ---------------------------------------------------------------------------
