@@ -177,6 +177,42 @@ public:
     return output;
   }
 
+  void save_file_cache() const {
+    const auto path = cache_file_path();
+    if (!path.parent_path().empty()) {
+      std::error_code error;
+      std::filesystem::create_directories(path.parent_path(), error);
+    }
+
+    nlohmann::json json = nlohmann::json::object();
+    json["schema_version"] = cache_schema_version;
+    json["entries"] = nlohmann::json::object();
+
+    for (const auto& [key, record] : memory_cache_) {
+      if (record.last_seen_unix == 0ULL) {
+        continue;
+      }
+
+      json["entries"][key] = {
+        {"display_name", record.display_name},
+        {"details", record.details},
+        {"state", record.state},
+        {"process_name", record.process_name},
+        {"exe_path", record.exe_path},
+        {"window_title", record.window_title},
+        {"first_seen_unix", record.first_seen_unix},
+        {"last_seen_unix", record.last_seen_unix},
+        {"seen_count", record.seen_count},
+        {"supported", record.supported},
+      };
+    }
+
+    std::ofstream file(path, std::ios::trunc);
+    if (file.is_open()) {
+      file << json.dump(2);
+    }
+  }
+
 private:
   struct CacheRecord : RecentActivityEntry {};
 
@@ -461,42 +497,6 @@ private:
 
     if (pruned) {
       save_file_cache();
-    }
-  }
-
-  void save_file_cache() const {
-    const auto path = cache_file_path();
-    if (!path.parent_path().empty()) {
-      std::error_code error;
-      std::filesystem::create_directories(path.parent_path(), error);
-    }
-
-    nlohmann::json json = nlohmann::json::object();
-    json["schema_version"] = cache_schema_version;
-    json["entries"] = nlohmann::json::object();
-
-    for (const auto& [key, record] : memory_cache_) {
-      if (record.last_seen_unix == 0ULL) {
-        continue;
-      }
-
-      json["entries"][key] = {
-        {"display_name", record.display_name},
-        {"details", record.details},
-        {"state", record.state},
-        {"process_name", record.process_name},
-        {"exe_path", record.exe_path},
-        {"window_title", record.window_title},
-        {"first_seen_unix", record.first_seen_unix},
-        {"last_seen_unix", record.last_seen_unix},
-        {"seen_count", record.seen_count},
-        {"supported", record.supported},
-      };
-    }
-
-    std::ofstream file(path, std::ios::trunc);
-    if (file.is_open()) {
-      file << json.dump(2);
     }
   }
 };

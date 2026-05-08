@@ -13,6 +13,7 @@ module;
 #include <rpc/platform/tray.hpp>
 #include <rpc/platform/recent_activity_dialog.hpp>
 #include <rpc/platform/theme.hpp>
+#include <rpc/platform/settings_dialog.hpp>
 #include <rpc/config/win32.h>
 
 #if defined(_WIN32)
@@ -36,6 +37,7 @@ import rpc.core;
 import rpc.core.orchestrator;
 import rpc.config;
 import rpc.utils.logger;
+import rpc.os.autostart;
 
 export namespace rpc::app {
 
@@ -103,7 +105,8 @@ public:
       : options_(options),
         instance_(GetModuleHandleW(nullptr)),
         taskbar_created_message_(RegisterWindowMessageW(L"TaskbarCreated")),
-        orchestrator_(options.poll_interval) {}
+        orchestrator_(options.poll_interval),
+        config_(rpc::load_config_or_default(rpc::settings_path())) {}
 
   ~WindowsAppShell() {
     rpc::platform::stop_theme_sync();
@@ -148,6 +151,7 @@ private:
   HICON app_icon_ = nullptr;
   bool app_icon_owned_ = false;
   rpc::core::Orchestrator orchestrator_;
+  rpc::Config config_;
 
   void ensure_app_icon() {
     if (app_icon_) {
@@ -230,6 +234,14 @@ private:
       app_icon_,
       win::recent_activity_title,
       wide_text);
+  }
+  
+  void show_settings() {
+    rpc::platform::show_settings_dialog(
+      hwnd_,
+      instance_,
+      app_icon_,
+      config_);
   }
 
   void hide_splash() const {
@@ -372,6 +384,21 @@ private:
         sync_window_theme();
         return 0;
 
+      case WM_CTLCOLORSTATIC: {
+        const bool dark_mode = rpc::platform::is_system_dark_mode();
+        const COLORREF background_color = dark_mode ? RGB(32, 34, 43) : RGB(246, 247, 250);
+        const COLORREF text_color = dark_mode ? RGB(190, 198, 215) : RGB(79, 86, 104);
+        
+        HDC hdc_static = reinterpret_cast<HDC>(wparam);
+        SetTextColor(hdc_static, text_color);
+        SetBkColor(hdc_static, background_color);
+        
+        static HBRUSH background_brush = nullptr;
+        if (background_brush) DeleteObject(background_brush);
+        background_brush = CreateSolidBrush(background_color);
+        return reinterpret_cast<LRESULT>(background_brush);
+      }
+
       case WM_CLOSE:
         hide_splash();
         return 0;
@@ -389,6 +416,10 @@ private:
         }
         if (LOWORD(wparam) == rpc::platform::kTrayMenuRecentActivity) {
           show_recent_activity();
+          return 0;
+        }
+        if (LOWORD(wparam) == rpc::platform::kTrayMenuSettings) {
+          show_settings();
           return 0;
         }
         if (LOWORD(wparam) == rpc::platform::kTrayMenuExit) {

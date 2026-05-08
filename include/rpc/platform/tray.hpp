@@ -7,7 +7,8 @@ namespace rpc::platform {
 inline constexpr std::uint32_t kTrayCallbackMessage = 0x8001;
 inline constexpr std::uint32_t kTrayMenuShow = 2001;
 inline constexpr std::uint32_t kTrayMenuRecentActivity = 2002;
-inline constexpr std::uint32_t kTrayMenuExit = 2003;
+inline constexpr std::uint32_t kTrayMenuSettings = 2003;
+inline constexpr std::uint32_t kTrayMenuExit = 2004;
 
 struct TrayConfig {
   void* window_handle = nullptr;

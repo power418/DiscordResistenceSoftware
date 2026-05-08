@@ -170,6 +170,30 @@ match_creative_app(const rpc::ActiveWindowInfo& snapshot) {
     };
   }
 
+  if (contains_any(identity, {"kontakt.exe", "kontakt 7", "kontakt 6", "kontakt 5"})) {
+    return CreativeAppProfile{
+      .display_name = "Native Instruments Kontakt",
+      .details = "Designing sounds",
+      .state = "Kontakt",
+    };
+  }
+
+  if (contains_any(identity, {"vital.exe"})) {
+    return CreativeAppProfile{
+      .display_name = "Vital",
+      .details = "Designing sounds",
+      .state = "Vital",
+    };
+  }
+
+  if (contains_any(identity, {"serum.exe", "serum_x64.exe"})) {
+    return CreativeAppProfile{
+      .display_name = "Xfer Serum",
+      .details = "Designing sounds",
+      .state = "Serum",
+    };
+  }
+
   if (auto profile = match_3d_app(identity); profile.has_value()) {
     return profile;
   }

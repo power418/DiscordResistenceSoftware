@@ -30,6 +30,11 @@
       "next_retry_unix": 0,
       "url": "https://files.catbox.moe/g78wib.png"
     },
+    "c:/program files/onlyoffice/desktopeditors/editors.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/mnrgen.png"
+    },
     "c:/program files/unity hub/unity hub.exe": {
       "failure_count": 0,
       "next_retry_unix": 0,
@@ -39,6 +44,11 @@
       "failure_count": 0,
       "next_retry_unix": 0,
       "url": "https://files.catbox.moe/ru9vup.png"
+    },
+    "c:/program files/windowsapps/microsoft.windowsnotepad_11.2512.29.0_x64__8wekyb3d8bbwe/notepad/notepad.exe": {
+      "failure_count": 0,
+      "next_retry_unix": 0,
+      "url": "https://files.catbox.moe/zrkngv.png"
     },
     "c:/programdata/ableton/live 12 suite/program/ableton live 12 suite.exe": {
       "failure_count": 0,

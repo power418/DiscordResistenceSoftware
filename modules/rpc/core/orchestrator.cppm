@@ -12,6 +12,7 @@ export module rpc.core.orchestrator;
 import rpc.activity;
 import rpc.core;
 import rpc.detectors.creative_apps;
+import rpc.detectors.office_apps;
 import rpc.detectors.productive_apps;
 import rpc.core.recent_activity;
 import rpc.discord.ipc_client;
@@ -25,6 +26,10 @@ class Orchestrator {
 public:
   explicit Orchestrator(std::chrono::milliseconds poll_interval = std::chrono::milliseconds(1000))
       : poll_interval_(poll_interval) {}
+
+  ~Orchestrator() {
+    save_history();
+  }
 
   void poll_once() const {
     if (rpc::sync_dotenv_if_changed()) {
@@ -44,7 +49,11 @@ public:
     // 3. If active window is neither → keep existing RPC as long as its process lives
     // 4. Only clear when the sticky process actually exits
 
-    const auto detected = rpc::detectors::detect_creative_activity(snapshot);
+    auto detected = rpc::detectors::detect_creative_activity(snapshot);
+    if (!detected.has_value()) {
+      detected = rpc::detectors::detect_office_activity(snapshot);
+    }
+
     std::optional<rpc::ActivityPayload> productive_detected;
     if (!detected.has_value()) {
       productive_detected = rpc::detectors::detect_productive_activity(snapshot);
@@ -94,6 +103,10 @@ public:
 
   [[nodiscard]] std::string recent_activity_summary(std::size_t limit = 10) const {
     return recent_activity_.summary(limit);
+  }
+
+  void save_history() const {
+    recent_activity_.save_file_cache();
   }
 
 private:

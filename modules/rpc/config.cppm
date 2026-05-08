@@ -13,7 +13,12 @@ export module rpc.config;
 
 export namespace rpc {
 
+[[nodiscard]] inline std::filesystem::path settings_path() {
+  return std::filesystem::current_path() / "config.json";
+}
+
 struct Config {
+  bool autostart = false;
   bool generic_mode = true;
   bool show_file_name = false;
   std::uint32_t poll_interval_ms = 1000;
@@ -61,6 +66,9 @@ extern const std::string_view common_controls_manifest_dependency;
     nlohmann::json json;
     file >> json;
 
+    if (json.contains("autostart")) {
+      cfg.autostart = json.value("autostart", cfg.autostart);
+    }
     if (json.contains("generic_mode")) {
       cfg.generic_mode = json.value("generic_mode", cfg.generic_mode);
     }
@@ -81,6 +89,25 @@ extern const std::string_view common_controls_manifest_dependency;
   }
 
   return cfg;
+}
+
+inline void save_config(const std::filesystem::path& path, const Config& cfg) {
+  try {
+    nlohmann::json json;
+    json["autostart"] = cfg.autostart;
+    json["generic_mode"] = cfg.generic_mode;
+    json["show_file_name"] = cfg.show_file_name;
+    json["poll_interval_ms"] = cfg.poll_interval_ms;
+    json["debounce_ms"] = cfg.debounce_ms;
+    json["log_level"] = cfg.log_level;
+
+    std::ofstream file(path, std::ios::out | std::ios::binary);
+    if (file) {
+      file << json.dump(2);
+    }
+  } catch (...) {
+    // Ignore save errors
+  }
 }
 
 } // namespace rpc

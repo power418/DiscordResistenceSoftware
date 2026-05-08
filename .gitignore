@@ -8,3 +8,4 @@ compile_commands.json
 .env
 icon_cache.json
 recent_activity.json
+config.json

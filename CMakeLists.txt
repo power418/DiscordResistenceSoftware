@@ -22,6 +22,7 @@ target_sources(rpc_core
     src/app/tray.cpp
     src/app/theme.cpp
     src/app/recent_activity_dialog.cpp
+    src/app/settings_dialog.cpp
     src/config/fonts.cpp
     src/config/win32.cpp
     src/config/url.cpp
@@ -36,10 +37,12 @@ target_sources(rpc_core
       modules/rpc/core/orchestrator.cppm
       modules/rpc/core/recent_activity.cppm
       modules/rpc/detectors/creative_apps.cppm
+      modules/rpc/detectors/office_apps.cppm
       modules/rpc/detectors/productive_apps.cppm
       modules/rpc/discord/ipc_client.cppm
       modules/rpc/net/imgur_uploader.cppm
       modules/rpc/os/active_window.cppm
+      modules/rpc/os/autostart.cppm
       modules/rpc/os/icon_cache.cppm
       modules/rpc/os/icon_extractor.cppm
       modules/rpc/utils/logger.cppm
@@ -50,6 +53,7 @@ target_sources(rpc_core
       include/rpc/config/url.h
       include/rpc/platform/icon.hpp
       include/rpc/platform/recent_activity_dialog.hpp
+      include/rpc/platform/settings_dialog.hpp
       include/rpc/platform/theme.hpp
       include/rpc/platform/tray.hpp
 )
