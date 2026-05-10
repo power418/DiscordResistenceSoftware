@@ -1,13 +1,14 @@
-#include <rpc/platform/settings_dialog.hpp>
-#include <rpc/platform/theme.hpp>
-
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+
 #include <string>
 #include <vector>
 #include <windows.h>
+
+#include <rpc/platform/settings_dialog.hpp>
+#include <rpc/platform/theme.hpp>
 
 import rpc.config;
 import rpc.os.autostart;

@@ -34,9 +34,9 @@ struct ActiveWindowInfo {
 };
 
 [[nodiscard]] inline std::uint64_t unix_timestamp_seconds_now() {
-  using namespace std::chrono;
   return static_cast<std::uint64_t>(
-    duration_cast<seconds>(system_clock::now().time_since_epoch()).count());
+    std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
 #if defined(_WIN32)

@@ -7,7 +7,7 @@
 #  include <windows.h>
 #endif
 
-import rpc.config;
+namespace rpc { struct Config; }
 
 namespace rpc::platform {
 

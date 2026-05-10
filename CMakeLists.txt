@@ -8,9 +8,20 @@ project(software_discord_rpc
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+
+# Check if the generator supports C++ modules
+if (CMAKE_GENERATOR MATCHES "Ninja|Visual Studio")
+  set(SUPPORT_MODULES ON)
+else()
+  set(SUPPORT_MODULES OFF)
+  message(STATUS "Generator '${CMAKE_GENERATOR}' does not support C++ modules. Falling back to regular sources.")
+endif()
+
+# We enable scanning globally only if supported. 
+# We'll set it to OFF initially to avoid breaking dependency checks (try_compile).
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -19,8 +30,18 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 include(cmake/Dependencies.cmake)
 
+# Enable module scanning globally if supported, but only AFTER dependencies 
+# to avoid breaking their internal compiler checks (try_compile).
+if (SUPPORT_MODULES)
+  set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+endif()
+
 option(SOFTWARE_RPC_ENABLE_LTO "Enable link-time optimization (Release-like builds)" ON)
 option(SOFTWARE_RPC_ENABLE_NATIVE_OPT "Enable -march=native (GCC/Clang only)" OFF)
+
+if (MSVC)
+  add_compile_options(/bigobj /Zc:preprocessor /utf-8 /W4)
+endif()
 
 add_library(rpc_res SHARED
   src/res/rpc_res.cpp
@@ -49,26 +70,51 @@ target_sources(rpc_core
     src/config/url.cpp
     src/config/dotenv.cpp
     src/stb_image.cpp
+    modules/rpc/core/recent_activity.cpp
+    modules/rpc/os/icon_cache.cpp
+    modules/rpc/core/orchestrator.cpp
+    modules/rpc/discord/ipc_client.cpp
+    modules/rpc/net/imgur_uploader.cpp
+    modules/rpc/utils/logger.cpp
+)
+
+set(RPC_CORE_MODULE_FILES
+  modules/rpc/rpc.cppm
+  modules/rpc/app/shell.cppm
+  modules/rpc/core.cppm
+  modules/rpc/activity.cppm
+  modules/rpc/config.cppm
+  modules/rpc/core/orchestrator.cppm
+  modules/rpc/core/recent_activity.cppm
+  modules/rpc/detectors/creative_apps.cppm
+  modules/rpc/detectors/office_apps.cppm
+  modules/rpc/detectors/productive_apps.cppm
+  modules/rpc/discord/ipc_client.cppm
+  modules/rpc/net/imgur_uploader.cppm
+  modules/rpc/os/active_window.cppm
+  modules/rpc/os/autostart.cppm
+  modules/rpc/os/icon_cache.cppm
+  modules/rpc/os/icon_extractor.cppm
+  modules/rpc/utils/logger.cppm
+  modules/rpc/utils/console.cppm
+)
+
+if (SUPPORT_MODULES)
+  target_sources(rpc_core
+    PUBLIC
+      FILE_SET CXX_MODULES FILES ${RPC_CORE_MODULE_FILES}
+  )
+else()
+  target_sources(rpc_core PRIVATE ${RPC_CORE_MODULE_FILES})
+  set_source_files_properties(${RPC_CORE_MODULE_FILES} PROPERTIES LANGUAGE CXX)
+  # Some compilers might need specific flags for modules when not using CMake's scanning
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(rpc_core PRIVATE -fmodules-ts)
+  endif()
+endif()
+
+target_sources(rpc_core
   PUBLIC
-    FILE_SET CXX_MODULES FILES
-      modules/rpc/rpc.cppm
-      modules/rpc/app/shell.cppm
-      modules/rpc/core.cppm
-      modules/rpc/activity.cppm
-      modules/rpc/config.cppm
-      modules/rpc/core/orchestrator.cppm
-      modules/rpc/core/recent_activity.cppm
-      modules/rpc/detectors/creative_apps.cppm
-      modules/rpc/detectors/office_apps.cppm
-      modules/rpc/detectors/productive_apps.cppm
-      modules/rpc/discord/ipc_client.cppm
-      modules/rpc/net/imgur_uploader.cppm
-      modules/rpc/os/active_window.cppm
-      modules/rpc/os/autostart.cppm
-      modules/rpc/os/icon_cache.cppm
-      modules/rpc/os/icon_extractor.cppm
-      modules/rpc/utils/logger.cppm
-      modules/rpc/utils/console.cppm
     FILE_SET HEADERS FILES
       include/rpc/activity.hpp
       include/rpc/config/fonts.h

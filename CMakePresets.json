@@ -34,11 +34,70 @@
         "CMAKE_CXX_COMPILER": "clang++",
         "SOFTWARE_RPC_ENABLE_LTO": "OFF"
       }
+    },
+    {
+      "name": "makefile-release",
+      "displayName": "Makefile Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "SOFTWARE_RPC_ENABLE_LTO": "ON"
+      }
+    },
+    {
+      "name": "makefile-debug",
+      "displayName": "Makefile Debug",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "SOFTWARE_RPC_ENABLE_LTO": "OFF"
+      }
+    },
+    {
+      "name": "msvc-release",
+      "displayName": "MSVC Release (Native)",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "SOFTWARE_RPC_ENABLE_LTO": "OFF"
+      }
+    },
+    {
+      "name": "msvc-debug",
+      "displayName": "MSVC Debug (Native)",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "SOFTWARE_RPC_ENABLE_LTO": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "clang-release", "configurePreset": "clang-release" },
-    { "name": "clang-debug", "configurePreset": "clang-debug" }
+    {
+      "name": "clang-release",
+      "configurePreset": "clang-release"
+    },
+    {
+      "name": "clang-debug",
+      "configurePreset": "clang-debug"
+    },
+    {
+      "name": "makefile-release",
+      "configurePreset": "makefile-release"
+    },
+    {
+      "name": "msvc-release",
+      "configurePreset": "msvc-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "msvc-debug",
+      "configurePreset": "msvc-debug",
+      "configuration": "Debug"
+    }
   ]
 }
-

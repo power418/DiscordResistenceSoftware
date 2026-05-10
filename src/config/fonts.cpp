@@ -1,4 +1,6 @@
+module;
 #include <rpc/config/fonts.h>
+module rpc.config;
 
 namespace rpc::config::fonts {
 

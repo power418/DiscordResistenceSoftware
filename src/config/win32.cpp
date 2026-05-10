@@ -1,6 +1,7 @@
+module;
 #include <rpc/config/win32.h>
-
 #include <string_view>
+module rpc.config;
 
 namespace rpc::config::win32 {
 

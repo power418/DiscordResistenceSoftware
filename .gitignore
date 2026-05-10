@@ -1,6 +1,8 @@
 out/*
 .cache/*
 build/*
+Release/*
+Debug/*
 .vs/*
 .vscode/*
 compile_commands.json
