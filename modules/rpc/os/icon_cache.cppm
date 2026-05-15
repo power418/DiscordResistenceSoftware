@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <chrono>
 #include <cstdint>
@@ -14,15 +14,13 @@ module;
 #include <unordered_map>
 #include <vector>
 
-export module rpc.os.icon_cache;
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/config.cppm>
+#include <modules/rpc/os/icon_extractor.cppm>
+#include <modules/rpc/net/imgur_uploader.cppm>
+#include <modules/rpc/utils/logger.cppm>
 
-import rpc.core;
-import rpc.config;
-import rpc.os.icon_extractor;
-import rpc.net.imgur_uploader;
-import rpc.utils.logger;
-
-export namespace rpc {
+namespace rpc {
 
 class IconCache {
 public:

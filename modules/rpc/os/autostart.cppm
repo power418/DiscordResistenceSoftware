@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <string>
 #include <filesystem>
@@ -9,8 +9,6 @@ module;
 #  endif
 #  include <windows.h>
 #endif
-
-export module rpc.os.autostart;
 
 #if defined(_WIN32)
 namespace rpc::os::detail {
@@ -25,7 +23,7 @@ namespace rpc::os::detail {
 }
 #endif
 
-export namespace rpc::os {
+namespace rpc::os {
 
 #if defined(_WIN32)
 [[nodiscard]] inline bool is_autostart_enabled() {

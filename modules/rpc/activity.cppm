@@ -1,10 +1,8 @@
-module;
+#pragma once
 
 #include <rpc/activity.hpp>
 
-export module rpc.activity;
-
-export namespace rpc {
+namespace rpc {
 using ::rpc::ActivityPayload;
 } // namespace rpc
 

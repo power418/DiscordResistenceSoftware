@@ -1,5 +1,3 @@
-module;
-
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -7,7 +5,7 @@ module;
 #include <string_view>
 #include <rpc/core/export.hpp>
 
-module rpc.core;
+#include <modules/rpc/core.cppm>
 
 namespace rpc {
 

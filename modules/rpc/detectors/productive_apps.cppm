@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <algorithm>
 #include <cctype>
@@ -7,12 +7,10 @@ module;
 #include <string>
 #include <string_view>
 
-export module rpc.detectors.productive_apps;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/os/active_window.cppm>
 
-import rpc.activity;
-import rpc.os.active_window;
-
-export namespace rpc::detectors {
+namespace rpc::detectors {
 
 struct ProductiveAppProfile {
   std::string_view display_name;

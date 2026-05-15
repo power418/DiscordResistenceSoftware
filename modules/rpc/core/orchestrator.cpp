@@ -1,4 +1,3 @@
-module;
 #include <chrono>
 #include <cstddef>
 #include <string>
@@ -6,19 +5,18 @@ module;
 #include <optional>
 #include <thread>
 
-module rpc.core.orchestrator;
-
-import rpc.activity;
-import rpc.core;
-import rpc.config;
-import rpc.detectors.creative_apps;
-import rpc.detectors.office_apps;
-import rpc.detectors.productive_apps;
-import rpc.core.recent_activity;
-import rpc.discord.ipc_client;
-import rpc.os.active_window;
-import rpc.os.icon_cache;
-import rpc.utils.logger;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/config.cppm>
+#include <modules/rpc/detectors/creative_apps.cppm>
+#include <modules/rpc/detectors/office_apps.cppm>
+#include <modules/rpc/detectors/productive_apps.cppm>
+#include <modules/rpc/core/recent_activity.cppm>
+#include <modules/rpc/discord/ipc_client.cppm>
+#include <modules/rpc/os/active_window.cppm>
+#include <modules/rpc/os/icon_cache.cppm>
+#include <modules/rpc/utils/logger.cppm>
+#include <modules/rpc/core/orchestrator.cppm>
 
 namespace rpc::core {
 

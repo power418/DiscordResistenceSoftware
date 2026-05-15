@@ -1,7 +1,4 @@
-module;
 #include <rpc/config/fonts.h>
-module rpc.config;
-
 namespace rpc::config::fonts {
 
 const std::string_view heading_family = "Space Grotesk";

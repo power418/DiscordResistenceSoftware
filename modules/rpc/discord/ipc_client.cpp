@@ -1,4 +1,3 @@
-module;
 #include <array>
 #include <cerrno>
 #include <chrono>
@@ -24,10 +23,9 @@ module;
 #  include <unistd.h>
 #endif
 
-module rpc.discord.ipc_client;
-
-import rpc.activity;
-import rpc.core;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/discord/ipc_client.cppm>
 
 namespace rpc::discord {
 

@@ -1,7 +1,7 @@
 #include <rpc/platform/tray.hpp>
 #include <rpc/config/win32.h>
 
-import rpc.config;
+#include <modules/rpc/config.cppm>
 
 #if defined(_WIN32)
 #  include <windows.h>
@@ -184,7 +184,7 @@ std::uint32_t last_tray_error() {
 
 } // namespace rpc::platform
 
-#else
+#elif defined(__linux__)
 
 namespace rpc::platform {
 

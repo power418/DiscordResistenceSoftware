@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <cstdlib>
 #include <cstddef>
@@ -11,9 +11,7 @@ module;
 #include <rpc/core/export.hpp>
 #include <rpc/config/app.h>
 
-export module rpc.core;
-
-export namespace rpc {
+namespace rpc {
 
 [[nodiscard]] std::string trim(std::string_view value);
 [[nodiscard]] std::string unquote(std::string value);
@@ -106,6 +104,10 @@ inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
 // ---------------------------------------------------------------------------
 
 [[nodiscard]] inline std::string env_or(const char* key, std::string_view fallback) {
+#if defined(NDEBUG)
+  (void)key;
+  return std::string(fallback);
+#else
 #if defined(_WIN32)
   char* value = nullptr;
   std::size_t value_size = 0;
@@ -125,6 +127,7 @@ inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
   }
 #endif
   return std::string(fallback);
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ inline bool sync_dotenv_if_changed(const std::filesystem::path& path = ".env") {
 // Utility
 // ---------------------------------------------------------------------------
 
-std::string make_activity_line(std::string_view details, std::string_view state) {
+inline std::string make_activity_line(std::string_view details, std::string_view state) {
   std::string line;
   line.reserve(details.size() + 3 + state.size());
   line.append(details);

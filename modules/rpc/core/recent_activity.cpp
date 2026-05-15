@@ -1,4 +1,3 @@
-module;
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -15,12 +14,11 @@ module;
 
 #include <nlohmann/json.hpp>
 
-module rpc.core.recent_activity;
-
-import rpc.activity;
-import rpc.core;
-import rpc.os.active_window;
-import rpc.utils.logger;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/os/active_window.cppm>
+#include <modules/rpc/utils/logger.cppm>
+#include <modules/rpc/core/recent_activity.cppm>
 
 namespace rpc {
 

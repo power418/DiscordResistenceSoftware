@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <algorithm>
 #include <chrono>
@@ -14,14 +14,12 @@ module;
 #include <utility>
 #include <vector>
 
-export module rpc.core.recent_activity;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/os/active_window.cppm>
+#include <modules/rpc/utils/logger.cppm>
 
-import rpc.activity;
-import rpc.core;
-import rpc.os.active_window;
-import rpc.utils.logger;
-
-export namespace rpc {
+namespace rpc {
 
 struct RecentActivityEntry {
   std::string display_name;

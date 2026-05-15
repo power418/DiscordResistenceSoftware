@@ -1,7 +1,4 @@
-module;
 #include <rpc/config/url.h>
-module rpc.config;
-
 namespace rpc::config::url {
 
 const std::string_view google_fonts_preconnect = "https://fonts.googleapis.com";

@@ -11,3 +11,13 @@ compile_commands.json
 icon_cache.json
 recent_activity.json
 config.json
+
+*.lib
+*.a
+*.dll
+*.dylib
+*.so
+*.exe
+*.app
+*.dmg
+*.dSYM

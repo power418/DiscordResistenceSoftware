@@ -10,8 +10,8 @@
 #include <rpc/platform/settings_dialog.hpp>
 #include <rpc/platform/theme.hpp>
 
-import rpc.config;
-import rpc.os.autostart;
+#include <modules/rpc/config.cppm>
+#include <modules/rpc/os/autostart.cppm>
 
 namespace {
 

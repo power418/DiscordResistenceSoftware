@@ -1,4 +1,3 @@
-module;
 #include <chrono>
 #include <cstdint>
 #include <algorithm>
@@ -15,13 +14,12 @@ module;
 
 #include <nlohmann/json.hpp>
 
-module rpc.os.icon_cache;
-
-import rpc.core;
-import rpc.config;
-import rpc.os.icon_extractor;
-import rpc.net.imgur_uploader;
-import rpc.utils.logger;
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/config.cppm>
+#include <modules/rpc/os/icon_extractor.cppm>
+#include <modules/rpc/net/imgur_uploader.cppm>
+#include <modules/rpc/utils/logger.cppm>
+#include <modules/rpc/os/icon_cache.cppm>
 
 namespace rpc {
 

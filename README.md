@@ -17,7 +17,7 @@ This application is built using **C++20** with a focus on high performance and l
 
 ## 📂 Directory Structure
 
-- **`src/`**: Contains the main application source code (entry point, tray implementation, win32 specifics).
+- **`src/`**: Contains the main application source code (entry point, tray implementations, and platform-specific UI wrappers).
 - **`include/`**: Public header files for various system components.
 - **`modules/`**: C++20 Module implementations for core logic.
 - **`res/`**: Graphical assets (icons, bitmaps) to be compiled into `rpc_res.dll`.
@@ -28,8 +28,12 @@ This application is built using **C++20** with a focus on high performance and l
 ## 🛠️ Development Guide
 
 ### Prerequisites
-- **Compiler**: MSVC (supporting C++20 Modules).
-- **Build System**: CMake 3.20+.
+- **Compiler**:
+  - **Windows**: MSVC (recommended).
+  - **macOS**: AppleClang from Xcode Command Line Tools is supported.
+  - **Linux**: Clang or GCC with C++20 support.
+- **Build System**: **CMake 3.28+**.
+- **Generator**: Ninja (recommended).
 - **Dependencies**: 
   - `nlohmann_json` (JSON Parsing)
   - `spdlog` (Logging)
@@ -43,7 +47,7 @@ This application is built using **C++20** with a focus on high performance and l
 
 ## 🔌 Application Detection (Detectors)
 
-The detection system works by monitoring the foreground window using the Win32 API. Each supported application has a matching pattern based on:
+The detection system works by monitoring the foreground window using platform APIs. Each supported application has a matching pattern based on:
 1. **Process Name** (e.g., `Ableton Live 11 Suite.exe`)
 2. **Window Title** (e.g., "FL Studio" substring)
 
@@ -53,7 +57,7 @@ This logic can be extended via `modules/rpc/core/orchestrator.cppm`.
 
 ## 📜 License
 
-This project is licensed under the **GNU GPL v3**. See the [LICENSE](file:///c:/Users/Administrator/Documents/Project/software-discord-rpc/LICENSE) file for more details.
+This project is licensed under the **GNU GPL v3**. See the [LICENSE](LICENSE) file for more details.
 
 ---
 

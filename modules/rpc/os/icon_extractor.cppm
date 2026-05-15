@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
@@ -18,9 +18,7 @@ module;
 #  include <wincodec.h>
 #endif
 
-export module rpc.os.icon_extractor;
-
-export namespace rpc {
+namespace rpc {
 
 #if defined(_WIN32)
 

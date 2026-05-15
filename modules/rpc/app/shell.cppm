@@ -1,11 +1,10 @@
-module;
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -16,6 +15,7 @@ module;
 #include <rpc/platform/settings_dialog.hpp>
 #include <rpc/config/win32.h>
 #include <rpc/core/export.hpp>
+#include <rpc/app/shell.hpp>
 
 #if defined(_WIN32)
 #  include <windows.h>
@@ -30,28 +30,16 @@ module;
 #      include <libappindicator/app-indicator.h>
 #    endif
 #  endif
+#elif defined(__APPLE__)
+#  include <csignal>
+#  include <rpc/platform/macos_bridge.h>
 #endif
 
-export module rpc.app.shell;
-
-import rpc.core;
-import rpc.core.orchestrator;
-import rpc.config;
-import rpc.utils.logger;
-import rpc.os.autostart;
-
-export namespace rpc::app {
-
-struct AppShellOptions {
-  std::chrono::milliseconds splash_duration = std::chrono::milliseconds(2500);
-  std::chrono::milliseconds poll_interval = std::chrono::milliseconds(1000);
-  bool show_splash_on_start = true;
-  bool enable_tray = true;
-};
-
-RPC_CORE_API int run(AppShellOptions options = {});
-
-} // namespace rpc::app
+#include <modules/rpc/core.cppm>
+#include <modules/rpc/core/orchestrator.cppm>
+#include <modules/rpc/config.cppm>
+#include <modules/rpc/utils/logger.cppm>
+#include <modules/rpc/os/autostart.cppm>
 
 namespace rpc::app {
 
@@ -117,7 +105,7 @@ public:
   }
 
   int run() {
-    rpc::log::init();
+    rpc::log::init(rpc::app_name());
     ensure_app_icon();
 
     if (!rpc::platform::init_tray_platform()) {
@@ -485,6 +473,228 @@ int run(AppShellOptions options) {
   return shell.run();
 }
 
+#elif defined(__APPLE__)
+namespace {
+
+constexpr std::uint32_t kTrayIconId = 1;
+
+class MacOSAppShell;
+MacOSAppShell* g_active_shell = nullptr;
+volatile std::sig_atomic_t g_headless_keep_running = 1;
+
+void handle_signal(int) {
+  g_headless_keep_running = 0;
+}
+
+[[nodiscard]] std::wstring ascii_wide_from_utf8(std::string_view value) {
+  std::wstring result;
+  result.reserve(value.size());
+  for (unsigned char character : value) {
+    result.push_back(character < 0x80 ? static_cast<wchar_t>(character) : L'?');
+  }
+  return result;
+}
+
+class MacOSAppShell {
+public:
+  explicit MacOSAppShell(AppShellOptions options)
+      : options_(options),
+        orchestrator_(options.poll_interval),
+        config_(rpc::load_config_or_default(rpc::settings_path())),
+        app_title_(ascii_wide_from_utf8(rpc::app_name())),
+        tray_tooltip_(app_title_.empty() ? L"RPC" : app_title_) {
+    g_active_shell = this;
+  }
+
+  ~MacOSAppShell() {
+    stop_polling();
+    remove_tray_icon();
+    g_active_shell = nullptr;
+  }
+
+  int run() {
+    rpc::log::init(rpc::app_name());
+
+    if (!rpc::platform::init_tray_platform()) {
+      rpc::log::warn("Tray platform init failed: {}", rpc::platform::last_tray_error());
+    }
+
+    if (options_.enable_tray) {
+      return run_with_tray();
+    }
+
+    return run_headless();
+  }
+
+  void show_main_window() {
+    rpc_macos_activate_application();
+    show_balloon();
+  }
+
+  void show_recent_activity() {
+    rpc_macos_activate_application();
+
+    std::string summary;
+    {
+      std::lock_guard<std::mutex> lock(orchestrator_mutex_);
+      summary = orchestrator_.recent_activity_summary(10);
+    }
+
+    const std::string text = summary.empty()
+      ? "No recent activity yet. Open a supported app to build history."
+      : summary;
+
+    rpc::platform::show_recent_activity_dialog(
+      nullptr,
+      nullptr,
+      nullptr,
+      "Recent activity",
+      text);
+  }
+
+  void show_settings() {
+    rpc_macos_activate_application();
+    rpc::platform::show_settings_dialog(nullptr, nullptr, nullptr, config_);
+  }
+
+private:
+  AppShellOptions options_;
+  rpc::core::Orchestrator orchestrator_;
+  rpc::Config config_;
+  std::wstring app_title_;
+  std::wstring tray_tooltip_;
+  bool tray_added_ = false;
+  std::atomic_bool running_ = false;
+  std::thread poll_thread_;
+  std::mutex orchestrator_mutex_;
+
+  int run_with_tray() {
+    start_polling();
+    add_tray_icon();
+
+    if (!tray_added_) {
+      stop_polling();
+      return run_headless();
+    }
+
+    if (options_.show_splash_on_start) {
+      show_balloon();
+    }
+
+    rpc_macos_run_application();
+    stop_polling();
+    remove_tray_icon();
+    return 0;
+  }
+
+  int run_headless() {
+    g_headless_keep_running = 1;
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+
+    if (options_.show_splash_on_start) {
+      show_balloon();
+    }
+
+    while (g_headless_keep_running != 0) {
+      poll_once();
+      std::this_thread::sleep_for(options_.poll_interval);
+    }
+
+    return 0;
+  }
+
+  void start_polling() {
+    if (running_.exchange(true)) {
+      return;
+    }
+
+    poll_thread_ = std::thread([this] {
+      while (running_.load()) {
+        poll_once();
+        std::this_thread::sleep_for(options_.poll_interval);
+      }
+    });
+  }
+
+  void stop_polling() {
+    running_ = false;
+    if (poll_thread_.joinable()) {
+      poll_thread_.join();
+    }
+  }
+
+  void poll_once() {
+    std::lock_guard<std::mutex> lock(orchestrator_mutex_);
+    orchestrator_.poll_once();
+  }
+
+  void add_tray_icon() {
+    if (!options_.enable_tray || tray_added_) {
+      return;
+    }
+
+    const rpc::platform::TrayConfig config{
+      .window_handle = this,
+      .icon_id = kTrayIconId,
+      .icon_handle = nullptr,
+      .tooltip = tray_tooltip_.c_str(),
+    };
+
+    if (!rpc::platform::add_tray_icon(config)) {
+      rpc::log::warn("Tray icon add failed: {}", rpc::platform::last_tray_error());
+      return;
+    }
+
+    tray_added_ = true;
+    rpc::log::info("Tray icon added");
+  }
+
+  void remove_tray_icon() {
+    if (!tray_added_) {
+      return;
+    }
+
+    rpc::platform::remove_tray_icon(this, kTrayIconId);
+    tray_added_ = false;
+  }
+
+  void show_balloon() {
+    if (!rpc::platform::show_tray_balloon(
+          nullptr,
+          kTrayIconId,
+          app_title_.empty() ? L"software_discord_rpc" : app_title_.c_str(),
+          L"Running in tray. Use the menu to manage the app.")) {
+      rpc::log::warn("Tray balloon failed: {}", rpc::platform::last_tray_error());
+    }
+  }
+};
+
+} // namespace
+
+extern "C" void rpc_macos_show_main_window(void) {
+  if (g_active_shell != nullptr) {
+    g_active_shell->show_main_window();
+  }
+}
+
+extern "C" void rpc_macos_show_recent_activity(void) {
+  if (g_active_shell != nullptr) {
+    g_active_shell->show_recent_activity();
+  }
+}
+
+extern "C" void rpc_macos_show_settings(void) {
+  if (g_active_shell != nullptr) {
+    g_active_shell->show_settings();
+  }
+}
+
+int run(AppShellOptions options) {
+  MacOSAppShell shell(options);
+  return shell.run();
+}
+
 #elif defined(__linux__)
 
 #if defined(SOFTWARE_RPC_HAS_APPINDICATOR)
@@ -497,7 +707,7 @@ public:
         orchestrator_(options.poll_interval) {}
 
   int run() {
-    rpc::log::init();
+    rpc::log::init(rpc::app_name());
 
     int argc = 0;
     char** argv = nullptr;
@@ -640,7 +850,7 @@ void show_linux_fallback_notice() {
 } // namespace
 
 int run(AppShellOptions options) {
-  rpc::log::init();
+  rpc::log::init(rpc::app_name());
   rpc::log::warn("Linux tray dependencies not found; running service fallback");
   show_linux_fallback_notice();
 
@@ -661,7 +871,7 @@ int run(AppShellOptions options) {
 #else
 
 int run(AppShellOptions options) {
-  rpc::log::init();
+  rpc::log::init(rpc::app_name());
   rpc::core::Orchestrator orchestrator(options.poll_interval);
   while (true) {
     orchestrator.tick_once();

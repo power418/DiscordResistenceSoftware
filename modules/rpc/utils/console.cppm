@@ -1,7 +1,7 @@
-module;
-
 #include <cstdlib>
 #include <iostream>
+
+#include <rpc/core/export.hpp>
 
 #if defined(_WIN32)
 #  ifndef _CRT_SECURE_NO_WARNINGS
@@ -13,12 +13,9 @@ module;
 #  include <shellapi.h>
 #  include <cstdio>
 #  include <string_view>
-#  include <rpc/core/export.hpp>
 #endif
 
-export module rpc.utils.console;
-
-export namespace rpc::console {
+namespace rpc::console {
 
 /**
  * @brief Enables the console window for logging.

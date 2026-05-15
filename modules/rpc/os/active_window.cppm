@@ -1,7 +1,8 @@
-module;
+#pragma once
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <cstdint>
 #include <filesystem>
 #include <system_error>
@@ -19,11 +20,12 @@ module;
 #  include <X11/Xatom.h>
 #  include <X11/Xlib.h>
 #  include <X11/Xutil.h>
+#elif defined(__APPLE__)
+#  include <ApplicationServices/ApplicationServices.h>
+#  include <libproc.h>
 #endif
 
-export module rpc.os.active_window;
-
-export namespace rpc {
+namespace rpc {
 
 struct ActiveWindowInfo {
   std::string title;
@@ -218,6 +220,88 @@ struct ActiveWindowInfo {
 
   return class_name;
 }
+#elif defined(__APPLE__)
+[[nodiscard]] inline std::string cfstring_to_utf8(CFStringRef value) {
+  if (value == nullptr) {
+    return {};
+  }
+
+  const CFIndex length = CFStringGetLength(value);
+  if (length <= 0) {
+    return {};
+  }
+
+  const CFIndex buffer_size = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
+  if (buffer_size <= 1) {
+    return {};
+  }
+
+  std::string output(static_cast<std::size_t>(buffer_size), '\0');
+  if (!CFStringGetCString(value, output.data(), buffer_size, kCFStringEncodingUTF8)) {
+    return {};
+  }
+
+  output.resize(std::strlen(output.c_str()));
+  return output;
+}
+
+[[nodiscard]] inline std::string cf_dictionary_string(CFDictionaryRef window, CFStringRef key) {
+  if (window == nullptr || key == nullptr) {
+    return {};
+  }
+
+  const CFTypeRef value = CFDictionaryGetValue(window, key);
+  if (value == nullptr || CFGetTypeID(value) != CFStringGetTypeID()) {
+    return {};
+  }
+
+  return cfstring_to_utf8(static_cast<CFStringRef>(value));
+}
+
+[[nodiscard]] inline std::int64_t cf_dictionary_int64(CFDictionaryRef window,
+                                                      CFStringRef key,
+                                                      std::int64_t fallback = 0) {
+  if (window == nullptr || key == nullptr) {
+    return fallback;
+  }
+
+  const CFTypeRef value = CFDictionaryGetValue(window, key);
+  if (value == nullptr) {
+    return fallback;
+  }
+
+  if (CFGetTypeID(value) == CFNumberGetTypeID()) {
+    std::int64_t result = fallback;
+    if (CFNumberGetValue(static_cast<CFNumberRef>(value), kCFNumberSInt64Type, &result)) {
+      return result;
+    }
+  }
+
+  return fallback;
+}
+
+[[nodiscard]] inline std::string macos_process_name(pid_t pid, std::string_view fallback_name) {
+  char buffer[PROC_PIDPATHINFO_MAXSIZE] = {};
+  if (proc_name(pid, buffer, sizeof(buffer)) > 0 && buffer[0] != '\0') {
+    return buffer;
+  }
+
+  if (!fallback_name.empty()) {
+    return std::string(fallback_name);
+  }
+
+  return {};
+}
+
+[[nodiscard]] inline std::string macos_process_path(pid_t pid) {
+  char buffer[PROC_PIDPATHINFO_MAXSIZE] = {};
+  const int written = proc_pidpath(pid, buffer, sizeof(buffer));
+  if (written <= 0 || buffer[0] == '\0') {
+    return {};
+  }
+
+  return std::string(buffer);
+}
 #endif
 
 [[nodiscard]] inline ActiveWindowInfo query_active_window() {
@@ -274,6 +358,53 @@ struct ActiveWindowInfo {
   }
 
   XCloseDisplay(display);
+#elif defined(__APPLE__)
+  CFArrayRef window_list = CGWindowListCopyWindowInfo(
+    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+    kCGNullWindowID);
+  if (window_list == nullptr) {
+    return info;
+  }
+
+  const CFIndex window_count = CFArrayGetCount(window_list);
+  for (CFIndex index = 0; index < window_count; ++index) {
+    CFDictionaryRef window = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(window_list, index));
+    if (window == nullptr) {
+      continue;
+    }
+
+    const std::int64_t layer = cf_dictionary_int64(window, kCGWindowLayer, 0);
+    if (layer != 0) {
+      continue;
+    }
+
+    const std::int64_t pid_value = cf_dictionary_int64(window, kCGWindowOwnerPID, 0);
+    const pid_t pid = static_cast<pid_t>(pid_value);
+    const std::int64_t window_number = cf_dictionary_int64(window, kCGWindowNumber, 0);
+
+    info.window_handle = static_cast<std::uintptr_t>(window_number != 0 ? window_number : pid_value);
+    info.process_name = cf_dictionary_string(window, kCGWindowOwnerName);
+    info.title = cf_dictionary_string(window, kCGWindowName);
+
+    if (pid > 0) {
+      info.exe_path = macos_process_path(pid);
+      if (info.process_name.empty()) {
+        info.process_name = macos_process_name(pid, {});
+      }
+      if (info.process_name.empty() && !info.exe_path.empty()) {
+        info.process_name = std::filesystem::path(info.exe_path).filename().string();
+      }
+    }
+
+    if (info.process_name.empty() && !info.title.empty()) {
+      info.process_name = info.title;
+    }
+
+    CFRelease(window_list);
+    return info;
+  }
+
+  CFRelease(window_list);
 #endif
 
   return info;
@@ -338,6 +469,56 @@ struct ActiveWindowInfo {
 
     if (exe.filename().string() == process_name) {
       return true;
+    }
+  }
+  return false;
+
+#elif defined(__APPLE__)
+  auto iequals = [](std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+      if (std::tolower(static_cast<unsigned char>(a[i])) !=
+          std::tolower(static_cast<unsigned char>(b[i]))) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const int bytes_required = proc_listpids(PROC_ALL_PIDS, 0, nullptr, 0);
+  if (bytes_required <= 0) {
+    return false;
+  }
+
+  std::vector<pid_t> pids(static_cast<std::size_t>(bytes_required / static_cast<int>(sizeof(pid_t))), 0);
+  const int bytes_used = proc_listpids(
+    PROC_ALL_PIDS,
+    0,
+    pids.data(),
+    static_cast<int>(pids.size() * sizeof(pid_t)));
+  if (bytes_used <= 0) {
+    return false;
+  }
+
+  const std::size_t pid_count = static_cast<std::size_t>(bytes_used / static_cast<int>(sizeof(pid_t)));
+  for (std::size_t index = 0; index < pid_count; ++index) {
+    const pid_t pid = pids[index];
+    if (pid <= 0) {
+      continue;
+    }
+
+    char name_buffer[PROC_PIDPATHINFO_MAXSIZE] = {};
+    if (proc_name(pid, name_buffer, sizeof(name_buffer)) > 0 && name_buffer[0] != '\0') {
+      if (iequals(name_buffer, process_name)) {
+        return true;
+      }
+    }
+
+    char path_buffer[PROC_PIDPATHINFO_MAXSIZE] = {};
+    if (proc_pidpath(pid, path_buffer, sizeof(path_buffer)) > 0 && path_buffer[0] != '\0') {
+      if (iequals(std::filesystem::path(path_buffer).filename().string(), process_name)) {
+        return true;
+      }
     }
   }
   return false;

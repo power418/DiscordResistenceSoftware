@@ -1,15 +1,17 @@
 // #define _CRT_SECURE_NO_WARNINGS
-// Pull in Windows UI baseline and manifest settings before module imports.
-#include <rpc/config/win32.h>
-#include <windows.h>
 #include <filesystem>
 
-import rpc;
+#include <rpc/rpc.hpp>
+
+#if defined(_WIN32)
+#  include <rpc/config/win32.h>
+#  include <windows.h>
+#endif
 
 int main(void) {
   rpc::console::enable();
 
-  #if defined(_WIN32)
+#if !defined(NDEBUG) && defined(_WIN32)
   {
     wchar_t module_path[MAX_PATH] = {};
     const DWORD length = GetModuleFileNameW(nullptr, module_path, MAX_PATH);
@@ -18,9 +20,11 @@ int main(void) {
       (void)rpc::load_dotenv(exe_dir / L".env");
     }
   }
-  #endif
+#endif
 
+#if !defined(NDEBUG)
   (void)rpc::load_dotenv();
+#endif
   return rpc::app::run();
 }
 

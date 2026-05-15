@@ -1,19 +1,23 @@
-module;
 #include <concepts>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <source_location>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#if defined(__has_include)
+#  if __has_include(<source_location>)
+#    include <source_location>
+#  endif
+#endif
+
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-module rpc.utils.logger;
+#include <modules/rpc/utils/logger.cppm>
 
 namespace rpc::log {
 
@@ -72,6 +76,7 @@ void set_level(Level level) {
     spdlog::set_level(to_spdlog(level));
 }
 
+#if defined(RPC_LOG_HAS_SOURCE_LOCATION)
 void info_at(std::string_view message, const std::source_location loc) {
     spdlog::info("[{}:{}] {}", loc.file_name(), loc.line(), message);
 }
@@ -83,5 +88,18 @@ void warn_at(std::string_view message, const std::source_location loc) {
 void error_at(std::string_view message, const std::source_location loc) {
     spdlog::error("[{}:{}] {}", loc.file_name(), loc.line(), message);
 }
+#else
+void info_at(std::string_view message) {
+    spdlog::info("{}", message);
+}
+
+void warn_at(std::string_view message) {
+    spdlog::warn("{}", message);
+}
+
+void error_at(std::string_view message) {
+    spdlog::error("{}", message);
+}
+#endif
 
 } // namespace rpc::log

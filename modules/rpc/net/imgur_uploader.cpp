@@ -1,4 +1,3 @@
-module;
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -14,7 +13,7 @@ module;
 
 #include <nlohmann/json.hpp>
 
-module rpc.net.imgur_uploader;
+#include <modules/rpc/net/imgur_uploader.cppm>
 
 namespace rpc::net {
 

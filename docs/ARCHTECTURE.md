@@ -42,7 +42,7 @@ Users want their Discord status to automatically show activity from many differe
 2. Support many applications with a plugin architecture.
 3. Provide fallback detection based on process/window title.
 4. Provide advanced detectors for applications with richer metadata.
-5. Cross-platform support for at least Windows and Linux, with macOS as a future option.
+5. Cross-platform support for Windows, Linux, and macOS.
 6. Safe RPC updates (no spam) and no crashes if Discord is not open.
 7. User-configurable without needing to code.
 
@@ -143,10 +143,10 @@ Platform strategy:
 - Windows: Win32 foreground window API.
 - Linux X11: xprop/wmctrl or X11 bindings.
 - Linux Wayland: limited fallback; use portals or process/window heuristics if available.
-- macOS: Accessibility API in a future phase.
+- macOS: CoreGraphics-based active window detection, with an AppKit status bar wrapper.
 
 Acceptance Criteria:
-- Can detect at least the active process on Windows and Linux.
+- Can detect at least the active process on Windows, Linux, and macOS.
 - Can debounce window changes so status doesn't change too rapidly.
 
 ---
@@ -427,7 +427,7 @@ Components:
 - C++17/20 as the core language.
 - OS-specific APIs for active window detection.
 - Discord RPC via native IPC (pipe/socket) or a wrapper library.
-- Optional lightweight GUI (tray) using Qt / Win32 / GTK.
+- Optional lightweight GUI (tray) using Qt / Win32 / GTK / AppKit.
 
 Pros:
 - Very high performance and low memory.
@@ -478,7 +478,7 @@ src/
 
   app/
     main.cpp
-    tray.cpp (optional)
+    tray.cpp / macos.mm (optional)
 ```
 
 ---
@@ -532,8 +532,9 @@ Options:
   - Tray icon
   - Settings window
 - Alternatives:
-  - Win32 tray API (Windows only)
+  - Win32 tray API (Windows)
   - GTK (Linux)
+  - AppKit status bar items (macOS)
 
 ---
 
@@ -605,7 +606,7 @@ MVP is sufficient with Level 1 + some Level 2.
 ## 15. MVP Scope
 
 ### In Scope
-- Windows + Linux X11 support.
+- Windows + Linux X11 + macOS status bar support.
 - Discord RPC connect/reconnect.
 - Active window detection.
 - Simple plugin manager.
@@ -676,7 +677,7 @@ Deliverables:
 
 ### Risk: Wayland limits access to active window
 Mitigation:
-- Focus MVP on Windows and Linux X11.
+- Focus MVP on Windows, Linux X11, and macOS status bar support.
 - Provide manual fallback/app whitelist.
 - Document Wayland limitations.
 

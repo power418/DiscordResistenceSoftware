@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -10,9 +10,7 @@ module;
 #include <nlohmann/json.hpp>
 #include <rpc/config/app.h>
 
-export module rpc.config;
-
-export namespace rpc {
+namespace rpc {
 
 [[nodiscard]] inline std::filesystem::path settings_path() {
   return std::filesystem::current_path() / "config.json";

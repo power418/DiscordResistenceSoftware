@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <cstdint>
 #include <optional>
@@ -6,9 +6,7 @@ module;
 #include <string_view>
 #include <vector>
 
-export module rpc.net.imgur_uploader;
-
-export namespace rpc::net {
+namespace rpc::net {
 
 /// Upload image data to a public host and return the public URL.
 /// Uses Imgur when a client ID is provided, otherwise falls back to anonymous

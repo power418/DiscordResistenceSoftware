@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -7,12 +7,10 @@ module;
 #include <string_view>
 #include <vector>
 
-export module rpc.discord.ipc_client;
+#include <modules/rpc/activity.cppm>
+#include <modules/rpc/core.cppm>
 
-import rpc.activity;
-import rpc.core;
-
-export namespace rpc::discord {
+namespace rpc::discord {
 
 class IpcClient {
 public:
