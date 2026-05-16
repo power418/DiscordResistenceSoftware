@@ -343,3 +343,16 @@ extern "C" void rpc_macos_request_quit(void) {
     [NSApp terminate:nil];
   }
 }
+
+extern "C" void rpc_macos_show_splash_dialog(const char* title, const char* message) {
+  @autoreleasepool {
+    [NSApp activateIgnoringOtherApps:YES];
+
+    NSAlert* alert = [[NSAlert alloc] init];
+    alert.alertStyle = NSAlertStyleInformational;
+    alert.messageText = ns_from_utf8(title != nullptr ? std::string_view(title) : std::string_view("software_discord_rpc"));
+    alert.informativeText = ns_from_utf8(message != nullptr ? std::string_view(message) : std::string_view("Discord RPC monitor active."));
+    [alert addButtonWithTitle:@"OK"];
+    [alert runModal];
+  }
+}

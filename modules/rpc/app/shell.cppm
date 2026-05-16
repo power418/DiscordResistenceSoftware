@@ -529,6 +529,12 @@ public:
   void show_main_window() {
     rpc_macos_activate_application();
     show_balloon();
+    
+    std::string title = rpc::app_name();
+    if (title.empty()) {
+      title = "software_discord_rpc";
+    }
+    rpc_macos_show_splash_dialog(title.c_str(), "Discord RPC monitor active. This window will hide to tray.");
   }
 
   void show_recent_activity() {
